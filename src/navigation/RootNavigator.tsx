@@ -23,7 +23,10 @@ export const RootNavigator: React.FC = () => {
       const granted = await requestNotificationPermission();
       if (granted) {
         const token = await getFCMToken();
-        if (token) setFcmToken(token);
+        if (token) {
+          console.log('FCM Token:', token);
+          setFcmToken(token);
+        }
       }
     })();
 
