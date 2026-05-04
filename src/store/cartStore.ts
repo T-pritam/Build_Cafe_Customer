@@ -25,13 +25,18 @@ export interface PendingScan {
   tableNumber: string;
 }
 
+export interface OutgoingPush {
+  pushId:        string;
+  toDisplayName: string;
+  items:         CartItem[];  // snapshot of items removed from cart; restored on reject/expire/cancel
+}
+
 interface CartState {
   items: CartItem[];
   tableNumber: string;
   tableId: string | null;
   sessionId: string | null;
   sessionStartedAt: number | null;
-  sessionExpired: boolean;
   displayName: string | null;
   rewardPointsApplied: number;
   pendingScan: PendingScan | null;
@@ -39,6 +44,7 @@ interface CartState {
   cubeSessionId: string | null;
   cubeNumber: string;
   pendingCubeScan: string | null;
+  outgoingPushes: OutgoingPush[];
   addItem: (item: Omit<CartItem, 'quantity' | 'cartKey'>) => void;
   removeItem: (cartKey: string) => void;
   updateQuantity: (cartKey: string, quantity: number) => void;
@@ -50,9 +56,12 @@ interface CartState {
   setRewardPointsApplied: (points: number) => void;
   clearSessionOnly: () => void;
   clearSession: () => void;
-  setSessionExpired: (expired: boolean) => void;
+  resetSessionTimer: () => void;
   setPendingScan: (scan: PendingScan | null) => void;
   setPendingCubeScan: (token: string | null) => void;
+  addOutgoingPush: (push: OutgoingPush) => void;
+  removeOutgoingPush: (pushId: string) => void;
+  restoreOutgoingPush: (pushId: string) => void;
 }
 
 function makeCartKey(id: string, modifiers: CartModifier[]): string {
@@ -69,7 +78,6 @@ export const useCartStore = create<CartState>((set, get) => ({
   tableId: null,
   sessionId: null,
   sessionStartedAt: null,
-  sessionExpired: false,
   displayName: null,
   rewardPointsApplied: 0,
   pendingScan: null,
@@ -77,6 +85,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   cubeSessionId: null,
   cubeNumber: '--',
   pendingCubeScan: null,
+  outgoingPushes: [],
 
   addItem: item => {
     const cartKey = makeCartKey(item.id, item.modifiers);
@@ -113,7 +122,6 @@ export const useCartStore = create<CartState>((set, get) => ({
       sessionId,
       displayName,
       sessionStartedAt: Date.now(),
-      sessionExpired: false,
     }),
 
   setCubeSession: (cubeId, cubeSessionId, cubeNumber) =>
@@ -123,7 +131,6 @@ export const useCartStore = create<CartState>((set, get) => ({
       cubeNumber: String(cubeNumber).padStart(2, '0'),
       sessionId: cubeSessionId,
       sessionStartedAt: Date.now(),
-      sessionExpired: false,
     }),
 
   setRewardPointsApplied: points => set({rewardPointsApplied: points}),
@@ -135,7 +142,6 @@ export const useCartStore = create<CartState>((set, get) => ({
       tableNumber: '--',
       sessionId: null,
       sessionStartedAt: null,
-      sessionExpired: false,
       displayName: null,
       cubeId: null,
       cubeSessionId: null,
@@ -149,7 +155,6 @@ export const useCartStore = create<CartState>((set, get) => ({
       tableNumber: '--',
       sessionId: null,
       sessionStartedAt: null,
-      sessionExpired: false,
       displayName: null,
       cubeId: null,
       cubeSessionId: null,
@@ -158,11 +163,40 @@ export const useCartStore = create<CartState>((set, get) => ({
       rewardPointsApplied: 0,
     }),
 
-  setSessionExpired: (expired) => set({sessionExpired: expired}),
+  // Resets the countdown without touching anything else — used by the Extend button
+  resetSessionTimer: () => set({sessionStartedAt: Date.now()}),
 
   setPendingScan: scan => set({pendingScan: scan}),
 
   setPendingCubeScan: token => set({pendingCubeScan: token}),
+
+  addOutgoingPush: push =>
+    set(state => ({outgoingPushes: [...state.outgoingPushes, push]})),
+
+  removeOutgoingPush: pushId =>
+    set(state => ({outgoingPushes: state.outgoingPushes.filter(p => p.pushId !== pushId)})),
+
+  restoreOutgoingPush: pushId =>
+    set(state => {
+      const outgoing = state.outgoingPushes.find(p => p.pushId === pushId);
+      if (!outgoing) return {};
+      // Merge restored items back, incrementing quantity if cartKey already exists
+      let items = [...state.items];
+      for (const item of outgoing.items) {
+        const existing = items.find(i => i.cartKey === item.cartKey);
+        if (existing) {
+          items = items.map(i =>
+            i.cartKey === item.cartKey ? {...i, quantity: i.quantity + item.quantity} : i,
+          );
+        } else {
+          items = [...items, item];
+        }
+      }
+      return {
+        items,
+        outgoingPushes: state.outgoingPushes.filter(p => p.pushId !== pushId),
+      };
+    }),
 
   totalAmount: () =>
     get().items.reduce(

@@ -242,30 +242,65 @@ export const ordersAPI = {
 
 // ── Push Requests ─────────────────────────────────────────────────────────────
 
-export const pushAPI = {
+export interface PushCartItem {
+  menuItemId:         string;
+  name:               string;
+  quantity:           number;
+  unitPrice:          number;
+  modifiers:          Array<{name: string; price: number}>;
+  originalSessionId?: string;  // preserved through push chains (edge case 6)
+  specialNote?:       string;
+}
+
+export interface IncomingPushRecord {
+  id:              string;
+  fromSessionId:   string;
+  fromSession:     {displayName: string};
+  cartSnapshot:    PushCartItem[];
+  totalAmount:     string;
+  status:          string;
+  expiresAt:       string;
+}
+
+export const pushRequestsAPI = {
   create: (params: {
     fromSessionId: string;
-    toSessionId: string;
-    cartSnapshot: object;
-    totalAmount: number;
+    toSessionId:   string;
+    items:         PushCartItem[];
   }) =>
-    api.post<{id: string; expiresAt: string}>('/push-requests', params),
+    api.post<{pushId: string}>('/push-requests', params),
 
-  accept: (id: string) => api.post<{ok: boolean}>(`/push-requests/${id}/accept`),
-  reject: (id: string) => api.post<{ok: boolean}>(`/push-requests/${id}/reject`),
-  cancel: (id: string) => api.post<{ok: boolean}>(`/push-requests/${id}/cancel`),
+  accept: (id: string) =>
+    api.post<{
+      ok: boolean;
+      alreadyAccepted?: boolean;
+      allItemsUnavailable?: boolean;
+      acceptedItems?: PushCartItem[];
+      unavailableItems?: string[];
+    }>(`/push-requests/${id}/accept`, {}),
+
+  reject: (id: string) =>
+    api.post<{ok: boolean}>(`/push-requests/${id}/reject`, {}),
+
+  cancel: (id: string) =>
+    api.post<{ok: boolean}>(`/push-requests/${id}/cancel`, {}),
 
   incoming: (sessionId: string) =>
+    api.get<{pushRequests: IncomingPushRecord[]}>(
+      '/push-requests/incoming',
+      {params: {sessionId}},
+    ),
+
+  outgoing: (sessionId: string) =>
     api.get<{
       pushRequests: Array<{
-        id: string;
-        fromSessionId: string;
-        cartSnapshot: object;
-        totalAmount: string;
-        status: string;
-        expiresAt: string;
+        id:        string;
+        toSession: {displayName: string};
+        cartSnapshot: PushCartItem[];
+        totalAmount:  string;
+        expiresAt:    string;
       }>;
-    }>('/push-requests/incoming', {params: {sessionId}}),
+    }>('/push-requests/outgoing', {params: {sessionId}}),
 };
 
 // ── Rewards ───────────────────────────────────────────────────────────────────
@@ -280,9 +315,52 @@ export const rewardsAPI = {
 export const feedbackAPI = {
   submit: (params: {
     orderId: string;
-    rating: number;
-    comment?: string;
-  }) => api.post<{id: string}>('/feedback', params),
+    items: Array<{
+      menuItemId:  string;
+      orderItemId?: string;
+      rating:      number;
+      comment?:    string;
+    }>;
+  }) => api.post<{ok: boolean}>('/feedback', params),
+};
+
+// ── Cubes ─────────────────────────────────────────────────────────────────────
+
+export interface CubeOrderItem {
+  id:         string;
+  name:       string;
+  quantity:   number;
+  unitPrice:  string;
+  menuItemId: string;
+}
+
+export interface CubeOrder {
+  id:          string;
+  status:      string;
+  totalAmount: string;
+  createdAt:   string;
+  items:       CubeOrderItem[];
+}
+
+export const cubeAPI = {
+  scan: (params: {
+    qrCodeToken:       string;
+    displayName:       string;
+    deviceFingerprint: string;
+  }) =>
+    api.post<{
+      sessionId:   string;
+      cubeNumber:  number;
+      cubeId:      string;
+      resumed:     boolean;
+      displayName: string;
+    }>('/cubes/scan', params),
+
+  bySession: (sessionId: string) =>
+    api.get<{
+      cube:   {id: string; cubeNumber: number; qrCodeToken: string; status: string};
+      orders: CubeOrder[];
+    }>(`/cubes/by-session/${sessionId}`),
 };
 
 export default api;

@@ -22,6 +22,7 @@ export const supabase: SupabaseClient | null =
 
 export const Channels = {
   orderSession: (sessionId: string) => `orders:session:${sessionId}`,
-  menuAvail: () => 'menu:availability',
-  push: (sessionId: string) => `push:${sessionId}`,
+  menuAvail:    () => 'menu:availability',
+  push:         (sessionId: string) => `push:${sessionId}`,
+  cubeSession:  (sessionId: string) => `cube:session:${sessionId}`,
 };

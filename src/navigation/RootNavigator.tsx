@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useCallback} from 'react';
-import {Linking, View, ActivityIndicator, Platform, Modal, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import {Linking, View, ActivityIndicator, Platform, Text, StyleSheet, TouchableOpacity} from 'react-native';
 import {NavigationContainer, createNavigationContainerRef} from '@react-navigation/native';
 import {useAuthStore} from '../store/authStore';
 import {useCartStore} from '../store/cartStore';
@@ -57,15 +57,20 @@ function parseDeepLink(url: string): DeepLinkResult {
 
 export const RootNavigator: React.FC = () => {
   const {isAuthenticated, isHydrated, user, setDeviceId, setFcmToken, fcmToken: storedFcmToken, hydrate} = useAuthStore();
-  const {pendingScan, setPendingScan, pendingCubeScan, setPendingCubeScan, sessionExpired, setSessionExpired} = useCartStore();
+  const {pendingScan, setPendingScan, pendingCubeScan, setPendingCubeScan} = useCartStore();
   const fpRef = useRef<string>('');
-  const {showExpiryWarning, secondsLeft} = useSessionHeartbeat();
+  const {showExpiryWarning, secondsLeft, extendSession} = useSessionHeartbeat();
 
   useEffect(() => {
     getOrCreateFingerprint().then(fp => {fpRef.current = fp;});
   }, []);
 
   const handleTableDeepLink = useCallback(async (tableId: string) => {
+    // Guard: if we're already in an active session for this exact table,
+    // ignore the re-delivered deep link (common on Android resume).
+    const currentState = useCartStore.getState();
+    if (currentState.sessionId && currentState.tableId === tableId) {return;}
+
     try {
       const res = await tablesAPI.scan(tableId);
       const {tableNumber} = res.data;
@@ -206,103 +211,62 @@ export const RootNavigator: React.FC = () => {
 
       <PushRequestOverlay />
 
-      {/* Session expired modal */}
-      <Modal
-        visible={sessionExpired}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSessionExpired(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Table session expired</Text>
-            <Text style={styles.modalSubtitle}>
-              Your table session timed out due to inactivity. Scan the QR code on your table to continue ordering.
-            </Text>
-            <TouchableOpacity style={styles.dismissBtn} onPress={() => setSessionExpired(false)}>
-              <Text style={styles.dismissBtnText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Session expiry warning banner */}
-      <Modal
-        visible={showExpiryWarning && !sessionExpired}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {}}>
-        <View style={styles.warningBannerWrap}>
+      {/* Session expiry warning — non-blocking absolute banner (no Modal, touches pass through) */}
+      {showExpiryWarning && (
+        <View style={styles.warningBannerWrap} pointerEvents="box-none">
           <View style={styles.warningBanner}>
             <Text style={styles.warningText}>
               {secondsLeft > 0
-                ? `Table session expires in ${secondsLeft}s — scan QR to stay`
-                : 'Table session expiring — scan QR to continue ordering'}
+                ? `Session expires in ${secondsLeft}s`
+                : 'Session expiring — scan QR to continue ordering'}
             </Text>
+            {secondsLeft > 0 && (
+              <TouchableOpacity style={styles.extendBtn} onPress={extendSession}>
+                <Text style={styles.extendBtnText}>Extend</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
-      </Modal>
+      )}
     </>
   );
 };
 
 const styles = StyleSheet.create({
   loader: {flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background},
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.outer,
-  },
-  modalCard: {
-    backgroundColor: Colors.background,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    width: '100%',
-    maxWidth: 360,
-    gap: Spacing.md,
-    ...Shadow.card,
-  },
-  modalTitle: {
-    fontFamily: 'Fraunces-SemiBold',
-    fontSize: 20,
-    color: Colors.textDark,
-  },
-  modalSubtitle: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: Colors.textMuted,
-    lineHeight: 20,
-  },
-  dismissBtn: {
-    backgroundColor: Colors.textDark,
-    borderRadius: Radius.full,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-  },
-  dismissBtnText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 15,
-    color: Colors.white,
-  },
   warningBannerWrap: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 90,
-    pointerEvents: 'none',
+    position:       'absolute',
+    bottom:         90,
+    left:           0,
+    right:          0,
+    paddingHorizontal: Spacing.outer,
   },
   warningBanner: {
-    marginHorizontal: Spacing.outer,
-    backgroundColor: Colors.textDark,
-    borderRadius: Radius.lg,
+    backgroundColor:  Colors.textDark,
+    borderRadius:     Radius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingVertical:  Spacing.sm + 2,
+    flexDirection:    'row',
+    alignItems:       'center',
+    justifyContent:   'space-between',
+    gap:              Spacing.sm,
+    ...Shadow.card,
   },
   warningText: {
     fontFamily: 'Inter-SemiBold',
-    fontSize: 13,
-    color: Colors.white,
-    textAlign: 'center',
+    fontSize:   13,
+    color:      Colors.white,
+    flex:       1,
+  },
+  extendBtn: {
+    backgroundColor: Colors.white,
+    borderRadius:    Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  extendBtnText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize:   12,
+    color:      Colors.textDark,
   },
 });
