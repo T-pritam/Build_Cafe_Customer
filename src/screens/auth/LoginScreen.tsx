@@ -9,63 +9,63 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {Colors, Spacing, Typography, Radius} from '../../theme';
+import {Colors, Spacing} from '../../theme';
 import {Input} from '../../components/Input';
 import {Button} from '../../components/Button';
 import {AuthStackParamList} from '../../navigation/types';
+import {useCartStore} from '../../store/cartStore';
+import {useAuthStore} from '../../store/authStore';
+
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 };
 
 export const LoginScreen: React.FC<Props> = ({navigation}) => {
+  const insets = useSafeAreaInsets();
   const [mobile, setMobile] = useState('');
-  const [loading, setLoading] = useState(false);
+  const pendingScan = useCartStore(s => s.pendingScan);
+  const deviceId = useAuthStore(s => s.deviceId);
 
   const handleSendOTP = async () => {
     if (mobile.length !== 10) {
       Toast.show({type: 'error', text1: 'Enter a valid 10-digit mobile number'});
       return;
     }
-    setLoading(true);
-    // Simulate API call
-    await new Promise<void>(r => setTimeout(r, 1000));
-    setLoading(false);
-    navigation.navigate('OTP', {mobile, mode: 'login'});
+    navigation.navigate('OTP', {phone: mobile, mode: 'login', deviceId: deviceId ?? undefined});
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor={Colors.background}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} translucent={false} />
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, {paddingTop: insets.top + Spacing.lg}]}
         keyboardShouldPersistTaps="handled">
-        {/* Brand wordmark */}
         <Text style={styles.wordmark}>BUILD CAFE</Text>
 
-        {/* Table badge */}
-        <View style={styles.tableBadge}>
-          <Text style={styles.tableLabel}>TABLE</Text>
-          <Text style={styles.tableNumber}>07</Text>
-        </View>
+        {/* Show table badge if user scanned a QR before logging in */}
+        {pendingScan && (
+          <View style={styles.tableBadge}>
+            <Text style={styles.tableLabel}>TABLE</Text>
+            <Text style={styles.tableNumber}>{pendingScan.tableNumber}</Text>
+          </View>
+        )}
 
-        {/* Headline */}
         <View style={styles.headlineBlock}>
           <Text style={styles.headline}>Welcome back.</Text>
           <Text style={styles.subtitle}>
-            Sign in with your mobile number to continue your order.
+            {pendingScan
+              ? `Sign in to start ordering at Table ${pendingScan.tableNumber}.`
+              : 'Sign in with your mobile number to continue your order.'}
           </Text>
         </View>
 
-        {/* Form */}
         <View style={styles.form}>
           <Input
             label="MOBILE NUMBER"
@@ -82,7 +82,6 @@ export const LoginScreen: React.FC<Props> = ({navigation}) => {
           <Button
             label="Send OTP"
             onPress={handleSendOTP}
-            loading={loading}
             disabled={mobile.length < 10}
           />
 
@@ -110,13 +109,12 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: Spacing.outer,
-    paddingTop: Spacing.lg,
     paddingBottom: Spacing.xl,
     alignItems: 'center',
   },
   wordmark: {
-    ...Typography.metaXS,
     fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
     color: Colors.textMuted,
     letterSpacing: 3.5,
     textTransform: 'uppercase',
@@ -131,7 +129,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 60,
+    marginBottom: Spacing.lg,
     shadowColor: '#1C1410',
     shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.06,
@@ -175,7 +173,8 @@ const styles = StyleSheet.create({
   },
   spacer: {flex: 1, minHeight: 40},
   terms: {
-    ...Typography.metaXS,
+    fontFamily: 'Inter-Regular',
+    fontSize: 11,
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: Spacing.sm,
@@ -185,8 +184,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   switchText: {
-    ...Typography.metaXS,
     fontFamily: 'Inter-Regular',
+    fontSize: 12,
     color: Colors.textMuted,
   },
   switchLink: {

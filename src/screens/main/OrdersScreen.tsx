@@ -1,4 +1,5 @@
-import React, {useState} from 'react';
+import React, {useState, useCallback} from 'react';
+import {useFocusEffect} from '@react-navigation/native';
 import {
   View,
   Text,
@@ -6,90 +7,117 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import {Colors, Spacing, Typography, Radius, Shadow} from '../../theme';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {Colors, Spacing, Radius, Shadow} from '../../theme';
+import {useCartStore} from '../../store/cartStore';
+import {ordersAPI} from '../../services/api';
+import {supabase, Channels} from '../../services/supabase';
 
 dayjs.extend(relativeTime);
 
-const DUMMY_ORDERS = [
-  {
-    id: 'ORD001',
-    status: 'preparing',
-    createdAt: new Date(Date.now() - 8 * 60000),
-    items: [
-      {name: 'Filter Coffee', qty: 2, price: 120},
-      {name: 'Bun Maska', qty: 1, price: 60},
-    ],
-    total: 300,
-    tableNumber: '07',
-  },
-  {
-    id: 'ORD002',
-    status: 'ready',
-    createdAt: new Date(Date.now() - 25 * 60000),
-    items: [
-      {name: 'Cold Brew', qty: 1, price: 180},
-      {name: 'Avocado Toast', qty: 1, price: 220},
-    ],
-    total: 420,
-    tableNumber: '07',
-  },
-  {
-    id: 'ORD003',
-    status: 'delivered',
-    createdAt: new Date(Date.now() - 2 * 3600000),
-    items: [{name: 'Masala Chai', qty: 3, price: 80}],
-    total: 240,
-    tableNumber: '07',
-  },
-];
+type OrderStatus =
+  | 'PAYMENT_PENDING' | 'KOT_GENERATED' | 'NEW' | 'PREPARING' | 'READY'
+  | 'PICKUP_CLAIMED' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'COMPLETED' | 'CANCELLED';
+
+interface Order {
+  id: string;
+  status: OrderStatus;
+  totalAmount: string;
+  createdAt: string;
+  items: Array<{name: string; quantity: number; unitPrice: string}>;
+}
 
 const STATUS_CONFIG: Record<
   string,
   {label: string; color: string; bg: string; icon: string}
 > = {
-  preparing: {
-    label: 'Preparing',
-    color: Colors.accentLightText,
-    bg: Colors.accentLight,
-    icon: 'fire',
-  },
-  ready: {
-    label: 'Ready',
-    color: Colors.success,
-    bg: Colors.successLight,
-    icon: 'check-circle',
-  },
-  delivered: {
-    label: 'Delivered',
-    color: Colors.textMuted,
-    bg: Colors.inputBg,
-    icon: 'check-all',
-  },
+  NEW: {label: 'Received', color: Colors.accentLightText, bg: Colors.accentLight, icon: 'check-circle-outline'},
+  PREPARING: {label: 'Preparing', color: Colors.accentLightText, bg: Colors.accentLight, icon: 'fire'},
+  READY: {label: 'Ready', color: Colors.success, bg: Colors.successLight, icon: 'check-circle'},
+  PICKUP_CLAIMED: {label: 'Pickup Claimed', color: Colors.success, bg: Colors.successLight, icon: 'run-fast'},
+  OUT_FOR_DELIVERY: {label: 'On the Way', color: Colors.success, bg: Colors.successLight, icon: 'bike'},
+  DELIVERED: {label: 'Delivered', color: Colors.textMuted, bg: Colors.inputBg, icon: 'check-all'},
+  COMPLETED: {label: 'Completed', color: Colors.textMuted, bg: Colors.inputBg, icon: 'check-all'},
+  CANCELLED: {label: 'Cancelled', color: Colors.error, bg: '#FFF0F0', icon: 'close-circle'},
+  PAYMENT_PENDING: {label: 'Payment Pending', color: Colors.textMuted, bg: Colors.inputBg, icon: 'clock-outline'},
+  KOT_GENERATED: {label: 'Confirmed', color: Colors.accentLightText, bg: Colors.accentLight, icon: 'receipt'},
 };
 
-export const OrdersScreen: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
+const ACTIVE_STATUSES: OrderStatus[] = [
+  'PAYMENT_PENDING', 'KOT_GENERATED', 'NEW', 'PREPARING', 'READY',
+  'PICKUP_CLAIMED', 'OUT_FOR_DELIVERY', 'DELIVERED',
+];
 
-  const active = DUMMY_ORDERS.filter(o =>
-    ['preparing', 'ready'].includes(o.status),
+export const OrdersScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
+  const sessionId = useCartStore(s => s.sessionId);
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await ordersAPI.listByUser();
+      setOrders(res.data.orders as Order[]);
+    } catch {
+      // silent fail
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchOrders();
+    }, [fetchOrders]),
   );
-  const past = DUMMY_ORDERS.filter(o => o.status === 'delivered');
+
+  // Realtime: update order status when broadcast arrives
+  useEffect(() => {
+    if (!sessionId || !supabase) {return;}
+    const channel = supabase
+      .channel(Channels.orderSession(sessionId))
+      .on('broadcast', {event: 'ORDER_STATUS'}, ({payload}) => {
+        const {orderId, status} = payload as {orderId: string; status: OrderStatus};
+        setOrders(prev =>
+          prev.map(o => (o.id === orderId ? {...o, status} : o)),
+        );
+      })
+      .subscribe();
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  }, [sessionId]);
+
+  const active = orders.filter(o => ACTIVE_STATUSES.includes(o.status));
+  const past = orders.filter(o => !ACTIVE_STATUSES.includes(o.status) && o.status !== 'PAYMENT_PENDING');
   const displayed = activeTab === 'active' ? active : past;
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator color={Colors.accent} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} translucent={false} />
 
-      {/* Top Bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, {paddingTop: insets.top + Spacing.md}]}>
         <Text style={styles.topBarTitle}>Orders</Text>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabRow}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'active' && styles.tabActive]}
@@ -117,7 +145,14 @@ export const OrdersScreen: React.FC = () => {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {setRefreshing(true); fetchOrders();}}
+            tintColor={Colors.accent}
+          />
+        }>
         {displayed.length === 0 ? (
           <View style={styles.emptyState}>
             <Icon name="receipt" size={56} color={Colors.border} />
@@ -128,13 +163,14 @@ export const OrdersScreen: React.FC = () => {
           </View>
         ) : (
           displayed.map(order => {
-            const cfg = STATUS_CONFIG[order.status];
+            const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.NEW;
             return (
               <TouchableOpacity key={order.id} style={styles.orderCard}>
-                {/* Header */}
                 <View style={styles.orderHeader}>
                   <View>
-                    <Text style={styles.orderId}>#{order.id}</Text>
+                    <Text style={styles.orderId}>
+                      #{order.id.slice(-6).toUpperCase()}
+                    </Text>
                     <Text style={styles.orderTime}>
                       {dayjs(order.createdAt).fromNow()}
                     </Text>
@@ -147,14 +183,13 @@ export const OrdersScreen: React.FC = () => {
                   </View>
                 </View>
 
-                {/* Items */}
                 <View style={styles.itemsList}>
                   {order.items.map((item, idx) => (
                     <View key={idx} style={styles.itemRow}>
-                      <Text style={styles.itemQty}>{item.qty}×</Text>
+                      <Text style={styles.itemQty}>{item.quantity}×</Text>
                       <Text style={styles.itemName}>{item.name}</Text>
                       <Text style={styles.itemPrice}>
-                        ₹{item.price * item.qty}
+                        ₹{(parseFloat(item.unitPrice) * item.quantity).toFixed(0)}
                       </Text>
                     </View>
                   ))}
@@ -162,21 +197,19 @@ export const OrdersScreen: React.FC = () => {
 
                 <View style={styles.divider} />
 
-                {/* Footer */}
                 <View style={styles.orderFooter}>
-                  <Text style={styles.tableText}>Table {order.tableNumber}</Text>
-                  <Text style={styles.orderTotal}>₹{order.total}</Text>
+                  <Text style={styles.tableText} />
+                  <Text style={styles.orderTotal}>
+                    ₹{parseFloat(order.totalAmount).toFixed(0)}
+                  </Text>
                 </View>
 
-                {/* Active order progress */}
-                {order.status === 'preparing' && (
+                {order.status === 'PREPARING' && (
                   <View style={styles.progressContainer}>
                     <View style={styles.progressTrack}>
                       <View style={[styles.progressBar, {width: '40%'}]} />
                     </View>
-                    <Text style={styles.progressText}>
-                      Est. ready in 12–15 mins
-                    </Text>
+                    <Text style={styles.progressText}>Est. ready in 12–15 mins</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -190,17 +223,14 @@ export const OrdersScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: Colors.background},
+  centered: {alignItems: 'center', justifyContent: 'center'},
   topBar: {
     paddingHorizontal: Spacing.outer,
-    paddingVertical: Spacing.md,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  topBarTitle: {
-    fontFamily: 'Fraunces-SemiBold',
-    fontSize: 24,
-    color: Colors.textDark,
-  },
+  topBarTitle: {fontFamily: 'Fraunces-SemiBold', fontSize: 24, color: Colors.textDark},
   tabRow: {
     flexDirection: 'row',
     paddingHorizontal: Spacing.outer,
@@ -215,31 +245,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  tabActive: {
-    backgroundColor: Colors.textDark,
-    borderColor: Colors.textDark,
-  },
-  tabText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: Colors.textDark,
-  },
+  tabActive: {backgroundColor: Colors.textDark, borderColor: Colors.textDark},
+  tabText: {fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textDark},
   tabTextActive: {color: Colors.white},
   scrollContent: {
     paddingHorizontal: Spacing.outer,
     paddingBottom: Spacing.xl,
     gap: Spacing.md,
   },
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 80,
-    gap: Spacing.md,
-  },
-  emptyTitle: {
-    fontFamily: 'Fraunces-SemiBold',
-    fontSize: 22,
-    color: Colors.textDark,
-  },
+  emptyState: {alignItems: 'center', paddingTop: 80, gap: Spacing.md},
+  emptyTitle: {fontFamily: 'Fraunces-SemiBold', fontSize: 22, color: Colors.textDark},
   emptySubtitle: {
     fontFamily: 'Inter-Regular',
     fontSize: 14,
@@ -260,17 +275,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  orderId: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 15,
-    color: Colors.textDark,
-  },
-  orderTime: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
+  orderId: {fontFamily: 'Inter-Bold', fontSize: 15, color: Colors.textDark},
+  orderTime: {fontFamily: 'Inter-Regular', fontSize: 12, color: Colors.textMuted, marginTop: 2},
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -286,47 +292,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   itemsList: {gap: 4},
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  itemQty: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 13,
-    color: Colors.textMuted,
-    width: 24,
-  },
-  itemName: {
-    flex: 1,
-    fontFamily: 'Inter-Regular',
-    fontSize: 13,
-    color: Colors.textDark,
-  },
-  itemPrice: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 13,
-    color: Colors.textDark,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.border + '50',
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  tableText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 13,
-    color: Colors.textMuted,
-  },
-  orderTotal: {
-    fontFamily: 'Fraunces-Bold',
-    fontSize: 20,
-    color: Colors.textDark,
-  },
+  itemRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  itemQty: {fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textMuted, width: 24},
+  itemName: {flex: 1, fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textDark},
+  itemPrice: {fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textDark},
+  divider: {height: 1, backgroundColor: Colors.border + '50'},
+  orderFooter: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+  tableText: {fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textMuted},
+  orderTotal: {fontFamily: 'Fraunces-Bold', fontSize: 20, color: Colors.textDark},
   progressContainer: {gap: 6},
   progressTrack: {
     height: 4,
@@ -334,15 +307,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     overflow: 'hidden',
   },
-  progressBar: {
-    height: '100%',
-    backgroundColor: Colors.accent,
-    borderRadius: Radius.full,
-  },
-  progressText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-  },
+  progressBar: {height: '100%', backgroundColor: Colors.accent, borderRadius: Radius.full},
+  progressText: {fontFamily: 'Inter-Regular', fontSize: 12, color: Colors.textMuted, fontStyle: 'italic'},
 });

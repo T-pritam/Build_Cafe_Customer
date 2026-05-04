@@ -1,51 +1,61 @@
 import React from 'react';
-import {View, Text, StyleSheet} from 'react-native';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import {MainTabParamList} from './types';
-import {MenuScreen} from '../screens/main/MenuScreen';
-import {CartScreen} from '../screens/main/CartScreen';
-import {OrdersScreen} from '../screens/main/OrdersScreen';
-import {ProfileScreen} from '../screens/main/ProfileScreen';
-import {Colors} from '../theme';
-import {useCartStore} from '../store/cartStore';
+import { MainTabParamList, MainStackParamList } from './types';
+import { MenuScreen } from '../screens/main/MenuScreen';
+import { CartScreen } from '../screens/main/CartScreen';
+import { OrdersScreen } from '../screens/main/OrdersScreen';
+import { ProfileScreen } from '../screens/main/ProfileScreen';
+import { ItemDetailScreen } from '../screens/main/ItemDetailScreen';
+import { OrderTrackingScreen } from '../screens/main/OrderTrackingScreen';
+import { OrderSuccessScreen } from '../screens/main/OrderSuccessScreen';
+import { SearchScreen } from '../screens/main/SearchScreen';
+import { HelpSupportScreen } from '../screens/main/HelpSupportScreen';
+import { SessionNamePromptScreen } from '../screens/main/SessionNamePromptScreen';
+import { CubeTrackingScreen } from '../screens/main/CubeTrackingScreen';
+import { Colors } from '../theme';
+import { useCartStore } from '../store/cartStore';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const Stack = createNativeStackNavigator<MainStackParamList>();
 
-const TAB_ICONS: Record<string, {active: string; inactive: string}> = {
-  Menu: {active: 'silverware', inactive: 'silverware'},
-  Cart: {active: 'shopping', inactive: 'shopping-outline'},
-  Orders: {active: 'receipt', inactive: 'receipt-outline'},
-  Profile: {active: 'account', inactive: 'account-outline'},
+const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
+  Menu: { active: 'food', inactive: 'food-outline' },
+  Cart: { active: 'shopping', inactive: 'shopping-outline' },
+  Orders: { active: 'clipboard-list', inactive: 'clipboard-list-outline' },
+  Profile: { active: 'account-circle', inactive: 'account-circle-outline' },
 };
 
-export const MainNavigator: React.FC = () => {
+const TabNavigator: React.FC = () => {
   const cartCount = useCartStore(s => s.totalItems());
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
       screenOptions={({route}) => ({
         headerShown: false,
         tabBarShowLabel: true,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, {
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+          paddingTop: 8,
+        }],
+        tabBarItemStyle: styles.tabItem,
         tabBarActiveTintColor: Colors.accent,
         tabBarInactiveTintColor: Colors.textDark + '70',
         tabBarLabelStyle: styles.tabLabel,
-        tabBarIcon: ({focused, color, size}) => {
+        tabBarIcon: ({focused, color}) => {
           const icons = TAB_ICONS[route.name];
           return (
-            <View
-              style={[
-                styles.iconWrap,
-                focused && styles.iconWrapActive,
-              ]}>
-              <Icon
-                name={focused ? icons.active : icons.inactive}
-                size={22}
-                color={color}
-                style={focused ? {'FILL': 1} as any : undefined}
-              />
-            </View>
+            // ← Removed outer View, icon renders directly
+            <Icon
+              name={focused ? icons.active : icons.inactive}
+              size={24}
+              color={color}
+            />
           );
         },
       })}>
@@ -64,29 +74,46 @@ export const MainNavigator: React.FC = () => {
   );
 };
 
+export const MainNavigator: React.FC = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Tabs" component={TabNavigator} />
+    <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
+    <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
+    <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ gestureEnabled: false }} />
+    <Stack.Screen name="Search" component={SearchScreen} />
+    <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+    <Stack.Screen name="SessionNamePrompt" component={SessionNamePromptScreen}
+      options={{ presentation: 'modal', headerShown: false }} />
+    <Stack.Screen name="CubeTracking" component={CubeTrackingScreen}
+      options={{ headerShown: false }} />
+  </Stack.Navigator>
+);
+
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    height: 80,
-    paddingBottom: 16,
-    paddingTop: 8,
+    elevation: 0,
+    shadowOpacity: 0,
+    overflow: 'visible',      // ← visible on bar itself
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',      // ← visible on each item
+    paddingTop: 0,
+    paddingBottom: 0,
+    marginTop: 0,
+    marginBottom: 0,
   },
   tabLabel: {
     fontFamily: 'Inter-Bold',
     fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
-    marginTop: 2,
-  },
-  iconWrap: {
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  iconWrapActive: {
-    backgroundColor: Colors.accentLight,
+    marginTop: 4,
   },
   badge: {
     backgroundColor: Colors.accent,

@@ -1,7 +1,9 @@
+import {MenuItem} from '../services/api';
+
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
-  OTP: {mobile: string; name?: string; mode: 'login' | 'signup'};
+  OTP: {phone: string; name?: string; mode: 'login' | 'signup'; deviceId?: string};
 };
 
 export type MainTabParamList = {
@@ -9,4 +11,24 @@ export type MainTabParamList = {
   Cart: undefined;
   Orders: undefined;
   Profile: undefined;
+};
+
+export type MainStackParamList = {
+  Tabs: undefined;
+  ItemDetail: {item: MenuItem};
+  OrderTracking: {
+    orderId: string;
+    initialStatus: string;
+    tableNumber: string;
+    totalAmount: string;
+  };
+  OrderSuccess: {
+    orderId: string;
+    tableNumber: string;
+    totalAmount: string;
+  };
+  Search: undefined;
+  HelpSupport: undefined;
+  SessionNamePrompt: {tableId: string; tableNumber: string};
+  CubeTracking: {qrCodeToken: string};
 };

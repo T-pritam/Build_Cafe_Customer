@@ -1,4 +1,7 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
+import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {MainStackParamList} from '../../navigation/types';
 import {
   View,
   Text,
@@ -7,134 +10,140 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  FlatList,
+  ImageBackground,
   StatusBar,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Toast from 'react-native-toast-message';
-import {Colors, Spacing, Typography, Radius, Shadow} from '../../theme';
+import {Colors, Spacing, Radius, Shadow} from '../../theme';
 import {VegBadge} from '../../components/VegBadge';
+import {AddonPickerModal} from '../../components/AddonPickerModal';
+import type {AddonOption} from '../../components/AddonPickerModal';
 import {useCartStore} from '../../store/cartStore';
 import {useAuthStore} from '../../store/authStore';
-
-const CATEGORIES = ['All', 'Coffee', 'Tea', 'Breakfast', 'Snacks', 'Desserts'];
-
-const MENU_ITEMS = [
-  {
-    id: '1',
-    name: 'Filter Coffee',
-    description: 'Slow-brewed South Indian decoction with steamed milk.',
-    price: 120,
-    category: 'Coffee',
-    isVeg: true,
-    badge: 'Bestseller',
-    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400',
-  },
-  {
-    id: '2',
-    name: 'Cold Brew',
-    description: '12-hour steeped, smooth and chocolatey.',
-    price: 180,
-    category: 'Coffee',
-    isVeg: true,
-    badge: null,
-    image: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400',
-  },
-  {
-    id: '3',
-    name: 'Bun Maska',
-    description: 'Soft bun with generous butter, served warm.',
-    price: 60,
-    category: 'Breakfast',
-    isVeg: true,
-    badge: 'Today\'s pick',
-    image: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc7b?w=400',
-  },
-  {
-    id: '4',
-    name: 'Masala Chai',
-    description: 'Freshly brewed spiced tea with ginger and cardamom.',
-    price: 80,
-    category: 'Tea',
-    isVeg: true,
-    badge: null,
-    image: 'https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=400',
-  },
-  {
-    id: '5',
-    name: 'Avocado Toast',
-    description: 'Sourdough with smashed avocado, chilli flakes and lemon.',
-    price: 220,
-    category: 'Breakfast',
-    isVeg: true,
-    badge: null,
-    image: 'https://images.unsplash.com/photo-1541519227354-08fa5d50c820?w=400',
-  },
-  {
-    id: '6',
-    name: 'Affogato',
-    description: 'Vanilla gelato drowned in a double shot of espresso.',
-    price: 200,
-    category: 'Desserts',
-    isVeg: true,
-    badge: 'New',
-    image: 'https://images.unsplash.com/photo-1579954115545-a95591f28bfc?w=400',
-  },
-];
+import {menuAPI, type MenuCategory, type MenuItem} from '../../services/api';
+import {supabase, Channels} from '../../services/supabase';
 
 export const MenuScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [activeCategory, setActiveCategory] = useState('All');
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [addonTarget, setAddonTarget] = useState<MenuItem | null>(null);
   const addItem = useCartStore(s => s.addItem);
   const cartItems = useCartStore(s => s.items);
   const user = useAuthStore(s => s.user);
   const tableNumber = useCartStore(s => s.tableNumber);
 
-  const getItemQty = (id: string) =>
-    cartItems.find(i => i.id === id)?.quantity || 0;
+  const fetchMenu = useCallback(async () => {
+    try {
+      const res = await menuAPI.getMenu();
+      setCategories(res.data.categories);
+    } catch {
+      Toast.show({type: 'error', text1: 'Could not load menu'});
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const filtered = MENU_ITEMS.filter(item => {
-    const matchCat = activeCategory === 'All' || item.category === activeCategory;
+  useEffect(() => {
+    fetchMenu();
+  }, [fetchMenu]);
+
+  // Supabase Realtime: update availability when items go in/out of stock
+  useEffect(() => {
+    if (!supabase) {return;}
+    const channel = supabase
+      .channel(Channels.menuAvail())
+      .on('broadcast', {event: 'MENU_AVAILABILITY'}, ({payload}) => {
+        const {menuItemId, isAvailable} = payload as {menuItemId: string; isAvailable: boolean};
+        setCategories(prev =>
+          prev.map(cat => ({
+            ...cat,
+            items: cat.items.map(item =>
+              item.id === menuItemId ? {...item, isAvailable} : item,
+            ),
+          })),
+        );
+      })
+      .subscribe();
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  }, []);
+
+  const allItems = categories.flatMap(c => c.items);
+  const categoryNames = ['All', ...categories.map(c => c.name)];
+
+  const getItemQty = (id: string) =>
+    cartItems.filter(i => i.id === id).reduce((s, i) => s + i.quantity, 0);
+
+  const filtered = allItems.filter(item => {
+    const matchCat =
+      activeCategory === 'All' ||
+      categories.find(c => c.name === activeCategory)?.items.some(i => i.id === item.id);
     const matchSearch =
       !search || item.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+    return matchCat && matchSearch && item.isAvailable;
   });
 
-  const handleAdd = (item: (typeof MENU_ITEMS)[0]) => {
+  const handleAdd = (item: MenuItem) => {
+    const available = (item.modifiers ?? []).filter(m => m.isAvailable);
+    if (available.length > 0) {
+      setAddonTarget(item);
+    } else {
+      addItem({id: item.id, name: item.name, price: parseFloat(item.price), isVeg: item.isVeg, image: item.imageUrl ?? undefined, modifiers: []});
+    }
+  };
+
+  const handleAddonConfirm = (selected: AddonOption[]) => {
+    if (!addonTarget) {return;}
     addItem({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      isVeg: item.isVeg,
-      image: item.image,
+      id: addonTarget.id,
+      name: addonTarget.name,
+      price: parseFloat(addonTarget.price),
+      isVeg: addonTarget.isVeg,
+      image: addonTarget.imageUrl ?? undefined,
+      modifiers: selected,
     });
-    Toast.show({
-      type: 'success',
-      text1: `${item.name} added to cart`,
-      visibilityTime: 1500,
-    });
+    setAddonTarget(null);
   };
 
   const greeting = () => {
     const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
+    if (h < 12) {return 'Good morning';}
+    if (h < 17) {return 'Good afternoon';}
     return 'Good evening';
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator color={Colors.accent} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
 
-      {/* Top App Bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, {paddingTop: insets.top + Spacing.md}]}>
         <TouchableOpacity style={styles.tableChip}>
           <Icon name="silverware" size={14} color={Colors.white} />
           <Text style={styles.tableChipText}>Table {tableNumber}</Text>
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Build Cafe</Text>
         <View style={styles.topBarRight}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Search')}>
             <Icon name="magnify" size={24} color={Colors.accent} />
           </TouchableOpacity>
         </View>
@@ -142,8 +151,17 @@ export const MenuScreen: React.FC = () => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
-        {/* Greeting */}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              fetchMenu();
+            }}
+            tintColor={Colors.accent}
+          />
+        }>
         <View style={styles.section}>
           <Text style={styles.greetingText}>
             {greeting()}, {user?.name?.split(' ')[0] || 'there'}.
@@ -151,7 +169,6 @@ export const MenuScreen: React.FC = () => {
           <Text style={styles.greetingSubtitle}>What feels right today?</Text>
         </View>
 
-        {/* Search */}
         <View style={styles.searchBar}>
           <Icon name="magnify" size={22} color={Colors.textMuted} />
           <TextInput
@@ -163,33 +180,49 @@ export const MenuScreen: React.FC = () => {
           />
         </View>
 
-        {/* Hero Banner */}
-        <View style={styles.heroBanner}>
-          <Image
-            source={{uri: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800'}}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-          <View style={styles.heroOverlay} />
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTag}>TODAY'S RITUAL</Text>
-            <Text style={styles.heroTitle}>Filter Coffee + Bun Maska</Text>
-            <Text style={styles.heroMeta}>Available till 11 AM · ₹150</Text>
-          </View>
-        </View>
+        {/* Category image cards */}
+        {categories.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryCards}>
+            {categories.map(cat => (
+              <TouchableOpacity
+                key={cat.id}
+                style={styles.categoryCard}
+                onPress={() => setActiveCategory(cat.name)}
+                activeOpacity={0.85}>
+                {cat.imageUrl ? (
+                  <ImageBackground
+                    source={{uri: cat.imageUrl}}
+                    style={styles.categoryCardBg}
+                    imageStyle={styles.categoryCardImage}>
+                    <View style={styles.categoryCardOverlay} />
+                    <Text style={styles.categoryCardLabel}>{cat.name}</Text>
+                    {activeCategory === cat.name && (
+                      <View style={styles.categoryCardActive} />
+                    )}
+                  </ImageBackground>
+                ) : (
+                  <View style={[styles.categoryCardBg, styles.categoryCardPlaceholder]}>
+                    <Icon name="food" size={24} color={Colors.border} />
+                    <Text style={styles.categoryCardLabelDark}>{cat.name}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Category chips */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryRow}>
-          {CATEGORIES.map(cat => (
+          {categoryNames.map(cat => (
             <TouchableOpacity
               key={cat}
-              style={[
-                styles.chip,
-                activeCategory === cat && styles.chipActive,
-              ]}
+              style={[styles.chip, activeCategory === cat && styles.chipActive]}
               onPress={() => setActiveCategory(cat)}>
               <Text
                 style={[
@@ -202,7 +235,6 @@ export const MenuScreen: React.FC = () => {
           ))}
         </ScrollView>
 
-        {/* Section header */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
             {activeCategory === 'All' ? 'All Items' : activeCategory}
@@ -210,17 +242,26 @@ export const MenuScreen: React.FC = () => {
           <Text style={styles.sectionCount}>{filtered.length} items</Text>
         </View>
 
-        {/* Menu list */}
         <View style={styles.menuList}>
           {filtered.map(item => {
             const qty = getItemQty(item.id);
             return (
-              <View key={item.id} style={styles.card}>
-                <Image
-                  source={{uri: item.image}}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                />
+              <TouchableOpacity
+                key={item.id}
+                style={styles.card}
+                onPress={() => navigation.navigate('ItemDetail', {item})}
+                activeOpacity={0.95}>
+                {item.imageUrl ? (
+                  <Image
+                    source={{uri: item.imageUrl}}
+                    style={styles.cardImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+                    <Icon name="food" size={28} color={Colors.border} />
+                  </View>
+                )}
                 <View style={styles.cardContent}>
                   <View>
                     <View style={styles.cardNameRow}>
@@ -232,22 +273,15 @@ export const MenuScreen: React.FC = () => {
                     </Text>
                   </View>
                   <View style={styles.cardBottom}>
-                    <View>
-                      {item.badge ? (
-                        <View style={styles.badge}>
-                          <Text style={styles.badgeText}>{item.badge}</Text>
-                        </View>
-                      ) : null}
-                      <Text style={styles.cardPrice}>₹{item.price}</Text>
-                    </View>
+                    <Text style={styles.cardPrice}>
+                      ₹{parseFloat(item.price).toFixed(0)}
+                    </Text>
                     {qty > 0 ? (
                       <View style={styles.qtyControl}>
                         <TouchableOpacity
                           style={styles.qtyBtn}
                           onPress={() =>
-                            useCartStore
-                              .getState()
-                              .updateQuantity(item.id, qty - 1)
+                            useCartStore.getState().updateQuantity(item.id, qty - 1)
                           }>
                           <Icon name="minus" size={14} color={Colors.textDark} />
                         </TouchableOpacity>
@@ -267,23 +301,35 @@ export const MenuScreen: React.FC = () => {
                     )}
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
       </ScrollView>
+
+      <AddonPickerModal
+        visible={addonTarget !== null}
+        itemName={addonTarget?.name ?? ''}
+        basePrice={parseFloat(addonTarget?.price ?? '0')}
+        addons={(addonTarget?.modifiers ?? [])
+          .filter(m => m.isAvailable)
+          .map(m => ({id: m.id, name: m.name, price: parseFloat(m.price)}))}
+        onConfirm={handleAddonConfirm}
+        onDismiss={() => setAddonTarget(null)}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: Colors.background},
+  centered: {alignItems: 'center', justifyContent: 'center'},
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.outer,
-    paddingVertical: Spacing.md,
+    paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.background,
@@ -309,14 +355,8 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   topBarRight: {flexDirection: 'row', gap: Spacing.md},
-  scrollContent: {
-    paddingBottom: Spacing.xl,
-    gap: Spacing.xl,
-  },
-  section: {
-    paddingHorizontal: Spacing.outer,
-    paddingTop: Spacing.md,
-  },
+  scrollContent: {paddingBottom: Spacing.xl, gap: Spacing.xl},
+  section: {paddingHorizontal: Spacing.outer, paddingTop: Spacing.md},
   greetingText: {
     fontFamily: 'Fraunces-SemiBold',
     fontSize: 28,
@@ -350,52 +390,57 @@ const styles = StyleSheet.create({
     color: Colors.textDark,
     padding: 0,
   },
-  heroBanner: {
-    height: 160,
-    marginHorizontal: Spacing.outer,
-    borderRadius: Radius.xl,
+  // Category image cards
+  categoryCards: {paddingHorizontal: Spacing.outer, gap: Spacing.md},
+  categoryCard: {
+    width: 96,
+    height: 96,
+    borderRadius: Radius.lg,
     overflow: 'hidden',
     ...Shadow.card,
   },
-  heroImage: {width: '100%', height: '100%'},
-  heroOverlay: {
+  categoryCardBg: {
+    width: 96,
+    height: 96,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    padding: 8,
+  },
+  categoryCardImage: {borderRadius: Radius.lg},
+  categoryCardOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: Radius.lg,
+  },
+  categoryCardLabel: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
+    color: Colors.white,
+    textAlign: 'center',
+    zIndex: 1,
+  },
+  categoryCardActive: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(28,20,16,0.55)',
+    height: 3,
+    backgroundColor: Colors.accent,
+    borderBottomLeftRadius: Radius.lg,
+    borderBottomRightRadius: Radius.lg,
   },
-  heroContent: {
-    position: 'absolute',
-    bottom: Spacing.md,
-    left: Spacing.md,
-    right: Spacing.md,
+  categoryCardPlaceholder: {
+    backgroundColor: Colors.inputBg,
+    gap: 6,
   },
-  heroTag: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 11,
-    color: Colors.accentLight,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom: 4,
+  categoryCardLabelDark: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
+    color: Colors.textMuted,
+    textAlign: 'center',
   },
-  heroTitle: {
-    fontFamily: 'Fraunces-SemiBold',
-    fontSize: 22,
-    color: Colors.white,
-    lineHeight: 28,
-  },
-  heroMeta: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 13,
-    color: Colors.accentLight,
-    marginTop: 2,
-  },
-  categoryRow: {
-    paddingHorizontal: Spacing.outer,
-    gap: 10,
-  },
+  // Chips
+  categoryRow: {paddingHorizontal: Spacing.outer, gap: 10},
   chip: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: 8,
@@ -404,15 +449,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  chipActive: {
-    backgroundColor: Colors.textDark,
-    borderColor: Colors.textDark,
-  },
-  chipText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    color: Colors.textDark,
-  },
+  chipActive: {backgroundColor: Colors.textDark, borderColor: Colors.textDark},
+  chipText: {fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textDark},
   chipTextActive: {color: Colors.white},
   sectionHeader: {
     flexDirection: 'row',
@@ -430,10 +468,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textMuted,
   },
-  menuList: {
-    paddingHorizontal: Spacing.outer,
-    gap: Spacing.md,
-  },
+  menuList: {paddingHorizontal: Spacing.outer, gap: Spacing.md},
   card: {
     backgroundColor: Colors.white,
     borderRadius: Radius.lg,
@@ -449,22 +484,18 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.lg,
     borderBottomLeftRadius: Radius.lg,
   },
+  cardImagePlaceholder: {
+    backgroundColor: Colors.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cardContent: {
     flex: 1,
     padding: Spacing.md,
     justifyContent: 'space-between',
   },
-  cardNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  cardName: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 15,
-    color: Colors.textDark,
-  },
+  cardNameRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4},
+  cardName: {fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textDark},
   cardDesc: {
     fontFamily: 'Inter-Regular',
     fontSize: 12,
@@ -476,26 +507,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
-  badge: {
-    backgroundColor: Colors.accentLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.full,
-    marginBottom: 4,
-    alignSelf: 'flex-start',
-  },
-  badgeText: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 10,
-    color: Colors.accentLightText,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  cardPrice: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 15,
-    color: Colors.textDark,
-  },
+  cardPrice: {fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textDark},
   addBtn: {
     borderWidth: 1,
     borderColor: Colors.accent,

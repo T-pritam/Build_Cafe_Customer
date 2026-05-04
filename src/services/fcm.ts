@@ -1,5 +1,6 @@
 import messaging from '@react-native-firebase/messaging';
 import {Platform, PermissionsAndroid} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
@@ -16,6 +17,27 @@ export async function requestNotificationPermission(): Promise<boolean> {
     authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
     authStatus === messaging.AuthorizationStatus.PROVISIONAL
   );
+}
+
+const DEVICE_ID_KEY = 'buildcafe_device_id';
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+export async function getDeviceId(): Promise<string> {
+  try {
+    const stored = await AsyncStorage.getItem(DEVICE_ID_KEY);
+    if (stored) {return stored;}
+    const id = generateUUID();
+    await AsyncStorage.setItem(DEVICE_ID_KEY, id);
+    return id;
+  } catch {
+    return generateUUID();
+  }
 }
 
 export async function getFCMToken(): Promise<string | null> {

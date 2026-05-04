@@ -9,23 +9,30 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {Colors, Spacing, Typography, Radius} from '../../theme';
+import {Colors, Spacing, Typography} from '../../theme';
 import {Input} from '../../components/Input';
 import {Button} from '../../components/Button';
 import {AuthStackParamList} from '../../navigation/types';
+import {useCartStore} from '../../store/cartStore';
+import {useAuthStore} from '../../store/authStore';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Signup'>;
 };
 
 export const SignupScreen: React.FC<Props> = ({navigation}) => {
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
-  const [loading, setLoading] = useState(false);
+  const pendingScan = useCartStore(s => s.pendingScan);
+  const deviceId = useAuthStore(s => s.deviceId);
 
-  const handleSendOTP = async () => {
+  const tableDisplay = pendingScan?.tableNumber ?? '--';
+
+  const handleSendOTP = () => {
     if (!name.trim()) {
       Toast.show({type: 'error', text1: 'Please enter your name'});
       return;
@@ -34,10 +41,7 @@ export const SignupScreen: React.FC<Props> = ({navigation}) => {
       Toast.show({type: 'error', text1: 'Enter a valid 10-digit mobile number'});
       return;
     }
-    setLoading(true);
-    await new Promise<void>(r => setTimeout(r, 1000));
-    setLoading(false);
-    navigation.navigate('OTP', {mobile, name, mode: 'signup'});
+    navigation.navigate('OTP', {phone: mobile, name, mode: 'signup', deviceId: deviceId ?? undefined});
   };
 
   const isValid = name.trim().length > 0 && mobile.length === 10;
@@ -46,18 +50,18 @@ export const SignupScreen: React.FC<Props> = ({navigation}) => {
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} translucent={false} />
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, {paddingTop: insets.top + Spacing.lg}]}
         keyboardShouldPersistTaps="handled">
         {/* Brand wordmark */}
         <Text style={styles.wordmark}>BUILD CAFE</Text>
 
-        {/* Table badge */}
+        {/* Table badge — dynamic from QR scan */}
         <View style={styles.tableBadge}>
           <Text style={styles.tableLabel}>TABLE</Text>
-          <Text style={styles.tableNumber}>07</Text>
+          <Text style={styles.tableNumber}>{tableDisplay}</Text>
         </View>
 
         {/* Headline */}
@@ -92,9 +96,8 @@ export const SignupScreen: React.FC<Props> = ({navigation}) => {
           <View style={styles.spacer} />
 
           <Button
-            label="Send OTP"
+            label="Start Ordering"
             onPress={handleSendOTP}
-            loading={loading}
             disabled={!isValid}
           />
 
@@ -122,7 +125,6 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: Spacing.outer,
-    paddingTop: Spacing.lg,
     paddingBottom: Spacing.xl,
     alignItems: 'center',
   },
