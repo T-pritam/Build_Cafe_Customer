@@ -16,6 +16,7 @@ export type MainTabParamList = {
 export type MainStackParamList = {
   Tabs: undefined;
   ItemDetail: {item: MenuItem};
+  OrderDetail: {orderId: string};
   OrderTracking: {
     orderId: string;
     initialStatus: string;

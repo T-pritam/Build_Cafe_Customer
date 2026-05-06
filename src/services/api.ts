@@ -96,8 +96,15 @@ export const authAPI = {
 
   me: () =>
     api.get<{
-      user: {id: string; name: string | null; phone: string; role: string; onboardingCompleted: boolean; rewardPointsBalance: number};
+      user: {
+        id: string; name: string | null; phone: string; role: string;
+        onboardingCompleted: boolean; rewardPointsBalance: number;
+        avatarUrl: string | null;
+      };
     }>('/auth/me'),
+
+  updateProfile: (params: {name?: string; avatarUrl?: string}) =>
+    api.patch<{ok: boolean}>('/auth/me', params),
 };
 
 export const fcmTokensAPI = {
@@ -109,6 +116,9 @@ export const fcmTokensAPI = {
     phone?: string;
     userId?: string;
   }) => api.post<{ok: boolean}>('/fcm-tokens', params),
+
+  setPreferences: (deviceId: string, app: 'customer' | 'admin', notificationsEnabled: boolean) =>
+    api.patch<{ok: boolean}>('/fcm-tokens/preferences', {deviceId, app, notificationsEnabled}),
 
   deactivate: (deviceId: string, app: 'customer' | 'admin') =>
     api.delete<{ok: boolean}>(`/fcm-tokens/${deviceId}`, {params: {app}}),
@@ -227,6 +237,42 @@ export const ordersAPI = {
         unitPrice: string;
       }>;
     }>(`/orders/${orderId}`),
+
+  getOrderDetail: (orderId: string) =>
+    api.get<{
+      id: string;
+      status: string;
+      orderType: string;
+      paymentMode: string | null;
+      subtotal: string;
+      gstAmount: string;
+      discountAmount: string;
+      rewardPointsRedeemed: number;
+      totalAmount: string;
+      createdAt: string;
+      sessionId: string | null;
+      tableNumber: number | null;
+      cubeNumber: number | null;
+      razorpayOrderId: string | null;
+      items: Array<{
+        name: string;
+        quantity: number;
+        unitPrice: string;
+        modifiers: Array<{name: string; price: number}>;
+        imageUrl: string | null;
+        isVeg: boolean;
+      }>;
+      statusHistory: Array<{status: string; createdAt: string}>;
+    }>(`/orders/${orderId}`),
+
+  retryPayment: (orderId: string) =>
+    api.post<{
+      orderId: string;
+      razorpayOrderId: string;
+      amountPaise: number;
+      currency: string;
+      keyId: string;
+    }>(`/orders/${orderId}/retry-payment`),
 
   listBySession: (sessionId: string) =>
     api.get<{
@@ -361,6 +407,13 @@ export const cubeAPI = {
       cube:   {id: string; cubeNumber: number; qrCodeToken: string; status: string};
       orders: CubeOrder[];
     }>(`/cubes/by-session/${sessionId}`),
+};
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+
+export const uploadAPI = {
+  presign: (contentType: string, folder: 'images' | 'audio' | 'avatars' | 'misc') =>
+    api.post<{uploadUrl: string; publicUrl: string; key: string}>('/upload/presign', {contentType, folder}),
 };
 
 export default api;

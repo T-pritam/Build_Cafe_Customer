@@ -11,6 +11,7 @@ export interface AuthUser {
   role: UserRole;
   onboardingCompleted: boolean;
   rewardPointsBalance: number;
+  avatarUrl?: string | null;
 }
 
 interface AuthState {

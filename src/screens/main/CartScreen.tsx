@@ -9,7 +9,9 @@ import {
   StatusBar,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {useFocusEffect} from '@react-navigation/native';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {MainStackParamList} from '../../navigation/types';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Toast from 'react-native-toast-message';
 import RazorpayCheckout from 'react-native-razorpay';
@@ -24,6 +26,7 @@ import {ordersAPI, pushRequestsAPI} from '../../services/api';
 
 export const CartScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const {
     items, updateQuantity, clearCart, totalAmount,
     tableNumber, sessionId,
@@ -110,12 +113,14 @@ export const CartScreen: React.FC = () => {
         paymentMode: grandTotal === 0 ? 'REWARD_POINTS' : 'UPI',
       });
 
+      const orderId = res.data.orderId;
+
       if (grandTotal === 0) {
         clearCart();
-        Toast.show({
-          type:  'success',
-          text1: 'Order placed!',
-          text2: 'Paid entirely with reward points.',
+        navigation.navigate('OrderSuccess', {
+          orderId,
+          tableNumber: tableNumber ?? '',
+          totalAmount: '0',
         });
         return;
       }
@@ -138,10 +143,10 @@ export const CartScreen: React.FC = () => {
       // Edge case 5: clearCart only called on payment SUCCESS — items from
       // accepted pushes are preserved if payment fails or is cancelled.
       clearCart();
-      Toast.show({
-        type:  'success',
-        text1: 'Payment successful!',
-        text2: 'Your order is being prepared.',
+      navigation.navigate('OrderSuccess', {
+        orderId,
+        tableNumber: tableNumber ?? '',
+        totalAmount: grandTotal.toFixed(0),
       });
     } catch (e: any) {
       if (e?.code !== 'PAYMENT_CANCELLED') {

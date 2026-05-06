@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,15 @@ import {
   StatusBar,
   Platform,
   PermissionsAndroid,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import {
   launchImageLibrary,
   launchCamera,
   ImagePickerResponse,
 } from 'react-native-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Toast from 'react-native-toast-message';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -25,13 +28,13 @@ import {Colors, Spacing, Typography, Radius, Shadow} from '../../theme';
 import {MainStackParamList} from '../../navigation/types';
 import {useAuthStore} from '../../store/authStore';
 import {requestNotificationPermission, getFCMToken, getDeviceId} from '../../services/fcm';
-import {fcmTokensAPI} from '../../services/api';
+import {fcmTokensAPI, ordersAPI, authAPI, uploadAPI} from '../../services/api';
 
 const APP_PLATFORM: 'ios' | 'android' | 'web' = Platform.OS === 'ios' ? 'ios' : 'android';
 
 const MENU_ITEMS = [
-  {icon: 'receipt-text-outline', label: 'Order History', badge: null},
-  {icon: 'bell-outline', label: 'Notifications', badge: '3'},
+  {icon: 'clipboard-list-outline', label: 'Order History', badge: null},
+  {icon: 'bell-outline', label: 'Notifications', badge: null},
   {icon: 'help-circle-outline', label: 'Help & Support', badge: null},
   {icon: 'shield-account-outline', label: 'Privacy Policy', badge: null},
   {icon: 'information-outline', label: 'About Build Cafe', badge: null},
@@ -43,6 +46,33 @@ export const ProfileScreen: React.FC = () => {
   const {user, logout} = useAuthStore();
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [orderCount, setOrderCount] = useState(0);
+  const [totalSpent, setTotalSpent] = useState(0);
+
+  useEffect(() => {
+    AsyncStorage.getItem('notif_enabled').then(v => {
+      if (v === 'true') {setNotifEnabled(true);}
+    });
+    // Prefer server avatarUrl; fall back to local AsyncStorage cache
+    if (user?.avatarUrl) {
+      setProfilePic(user.avatarUrl);
+    } else {
+      AsyncStorage.getItem('profile_pic').then(v => {
+        if (v) {setProfilePic(v);}
+      });
+    }
+    ordersAPI.listByUser().then(res => {
+      const orders = res.data.orders;
+      setOrderCount(orders.length);
+      setTotalSpent(orders.reduce((s, o) => s + parseFloat(o.totalAmount), 0));
+    }).catch(() => {});
+  }, [user?.avatarUrl]);
+
+  const persistNotif = (val: boolean) => {
+    setNotifEnabled(val);
+    AsyncStorage.setItem('notif_enabled', val ? 'true' : 'false');
+  };
 
   const registerFCMToken = async () => {
     const granted = await requestNotificationPermission();
@@ -58,15 +88,27 @@ export const ProfileScreen: React.FC = () => {
 
   const handleImageResult = async (result: ImagePickerResponse) => {
     if (result.didCancel || result.errorCode) {return;}
-    const uri = result.assets?.[0]?.uri;
-    if (uri) {
-      setProfilePic(uri);
+    const asset = result.assets?.[0];
+    if (!asset?.uri) {return;}
+
+    setUploading(true);
+    try {
+      const contentType = asset.type ?? 'image/jpeg';
+      const presignRes = await uploadAPI.presign(contentType, 'avatars');
+      const {uploadUrl, publicUrl} = presignRes.data;
+
+      const imgData = await fetch(asset.uri);
+      const blob = await imgData.blob();
+      await fetch(uploadUrl, {method: 'PUT', body: blob, headers: {'Content-Type': contentType}});
+
+      await authAPI.updateProfile({avatarUrl: publicUrl});
+      setProfilePic(publicUrl);
+      await AsyncStorage.setItem('profile_pic', publicUrl);
       Toast.show({type: 'success', text1: 'Profile photo updated'});
-      const ok = await registerFCMToken();
-      if (ok) {
-        setNotifEnabled(true);
-        Toast.show({type: 'success', text1: 'Notifications enabled', text2: 'You\'ll receive order updates'});
-      }
+    } catch {
+      Toast.show({type: 'error', text1: 'Failed to upload photo'});
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -86,20 +128,38 @@ export const ProfileScreen: React.FC = () => {
   };
 
   const handleProfilePicAction = () => {
+    const removeOption = profilePic
+      ? [{
+          text: 'Remove Photo',
+          style: 'destructive' as const,
+          onPress: async () => {
+            setProfilePic(null);
+            await AsyncStorage.removeItem('profile_pic');
+          },
+        }]
+      : [];
     Alert.alert('Profile Photo', 'Choose a source', [
       {text: 'Camera', onPress: openCamera},
       {text: 'Photo Library', onPress: openLibrary},
+      ...removeOption,
       {text: 'Cancel', style: 'cancel'},
     ]);
   };
 
   const handleNotificationToggle = async () => {
-    const ok = await registerFCMToken();
-    if (ok) {
-      setNotifEnabled(true);
-      Toast.show({type: 'success', text1: 'Notifications enabled'});
+    if (notifEnabled) {
+      const deviceId = await getDeviceId();
+      await fcmTokensAPI.deactivate(deviceId, 'customer').catch(() => {});
+      persistNotif(false);
+      Toast.show({type: 'success', text1: 'Notifications disabled'});
     } else {
-      Toast.show({type: 'error', text1: 'Permission denied in settings'});
+      const ok = await registerFCMToken();
+      if (ok) {
+        persistNotif(true);
+        Toast.show({type: 'success', text1: 'Notifications enabled'});
+      } else {
+        Toast.show({type: 'error', text1: 'Allow notifications in Settings'});
+      }
     }
   };
 
@@ -123,7 +183,7 @@ export const ProfileScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}>
         {/* Avatar */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity style={styles.avatarWrapper} onPress={handleProfilePicAction}>
+          <TouchableOpacity style={styles.avatarWrapper} onPress={handleProfilePicAction} disabled={uploading}>
             {profilePic ? (
               <Image source={{uri: profilePic}} style={styles.avatar} resizeMode="cover" />
             ) : (
@@ -131,9 +191,15 @@ export const ProfileScreen: React.FC = () => {
                 <Icon name="account" size={40} color={Colors.border} />
               </View>
             )}
-            <View style={styles.avatarEditBadge}>
-              <Icon name="camera" size={14} color={Colors.white} />
-            </View>
+            {uploading ? (
+              <View style={styles.avatarEditBadge}>
+                <ActivityIndicator size={12} color={Colors.white} />
+              </View>
+            ) : (
+              <View style={styles.avatarEditBadge}>
+                <Icon name="camera" size={14} color={Colors.white} />
+              </View>
+            )}
           </TouchableOpacity>
           <Text style={styles.profileName}>{user?.name || 'Guest'}</Text>
           <Text style={styles.profileMobile}>{user?.phone ?? ''}</Text>
@@ -142,12 +208,14 @@ export const ProfileScreen: React.FC = () => {
         {/* Stats row */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{orderCount}</Text>
             <Text style={styles.statLabel}>Orders</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>₹2,840</Text>
+            <Text style={styles.statValue}>
+              ₹{totalSpent.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+            </Text>
             <Text style={styles.statLabel}>Spent</Text>
           </View>
           <View style={styles.statDivider} />
@@ -183,7 +251,16 @@ export const ProfileScreen: React.FC = () => {
               style={[styles.menuRow, idx < MENU_ITEMS.length - 1 && styles.menuRowBorder]}
               onPress={() => {
                 if (item.label === 'Order History') {(navigation as any).navigate('Orders');}
-                if (item.label === 'Help & Support') {navigation.navigate('HelpSupport');}
+                if (item.label === 'Notifications')  {Linking.openSettings();}
+                if (item.label === 'Help & Support')  {navigation.navigate('HelpSupport');}
+                if (item.label === 'Privacy Policy') {
+                  Linking.openURL('https://buildcafe.tach21.com/privacy').catch(() => {
+                    Alert.alert('Privacy Policy', 'Visit buildcafe.tach21.com for our privacy policy.');
+                  });
+                }
+                if (item.label === 'About Build Cafe') {
+                  Alert.alert('Build Cafe', 'Version 1.0.0\n\nA café ordering experience built for Build Gym.');
+                }
               }}>
               <Icon name={item.icon} size={22} color={Colors.textMuted} />
               <Text style={styles.menuRowLabel}>{item.label}</Text>

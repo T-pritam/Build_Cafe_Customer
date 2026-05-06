@@ -1,4 +1,4 @@
-import messaging from '@react-native-firebase/messaging';
+import messaging, {FirebaseMessagingTypes} from '@react-native-firebase/messaging';
 import {Platform, PermissionsAndroid} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -62,4 +62,14 @@ export function setBackgroundMessageHandler() {
   messaging().setBackgroundMessageHandler(async remoteMessage => {
     console.log('Background FCM:', remoteMessage);
   });
+}
+
+export function onNotificationOpenedApp(
+  cb: (msg: FirebaseMessagingTypes.RemoteMessage) => void,
+): () => void {
+  return messaging().onNotificationOpenedApp(cb);
+}
+
+export function getInitialNotification(): Promise<FirebaseMessagingTypes.RemoteMessage | null> {
+  return messaging().getInitialNotification();
 }

@@ -1,5 +1,7 @@
-import React, {useState, useCallback} from 'react';
-import {useFocusEffect} from '@react-navigation/native';
+import React, {useState, useCallback, useEffect} from 'react';
+import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import {MainStackParamList} from '../../navigation/types';
 import {
   View,
   Text,
@@ -56,6 +58,7 @@ const ACTIVE_STATUSES: OrderStatus[] = [
 
 export const OrdersScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -165,7 +168,10 @@ export const OrdersScreen: React.FC = () => {
           displayed.map(order => {
             const cfg = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.NEW;
             return (
-              <TouchableOpacity key={order.id} style={styles.orderCard}>
+              <TouchableOpacity
+                key={order.id}
+                style={styles.orderCard}
+                onPress={() => navigation.navigate('OrderDetail', {orderId: order.id})}>
                 <View style={styles.orderHeader}>
                   <View>
                     <Text style={styles.orderId}>

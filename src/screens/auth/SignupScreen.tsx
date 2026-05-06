@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
@@ -49,31 +48,30 @@ export const SignupScreen: React.FC<Props> = ({navigation}) => {
   return (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} translucent={false} />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.container, {paddingTop: insets.top + Spacing.lg}]}
-        keyboardShouldPersistTaps="handled">
-        {/* Brand wordmark */}
-        <Text style={styles.wordmark}>BUILD CAFE</Text>
+      <View style={[styles.container, {paddingTop: insets.top + Spacing.lg, paddingBottom: insets.bottom + Spacing.lg}]}>
+        {/* Top content */}
+        <View style={styles.topContent}>
+          <Text style={styles.wordmark}>BUILD CAFE</Text>
 
-        {/* Table badge — dynamic from QR scan */}
-        <View style={styles.tableBadge}>
-          <Text style={styles.tableLabel}>TABLE</Text>
-          <Text style={styles.tableNumber}>{tableDisplay}</Text>
+          {/* Table badge — dynamic from QR scan */}
+          <View style={styles.tableBadge}>
+            <Text style={styles.tableLabel}>TABLE</Text>
+            <Text style={styles.tableNumber}>{tableDisplay}</Text>
+          </View>
+
+          {/* Headline */}
+          <View style={styles.headlineBlock}>
+            <Text style={styles.headline}>A warm welcome.</Text>
+            <Text style={styles.subtitle}>
+              Tell us your name so we can personalise your visit and reach you
+              if anything's needed for your order.
+            </Text>
+          </View>
         </View>
 
-        {/* Headline */}
-        <View style={styles.headlineBlock}>
-          <Text style={styles.headline}>A warm welcome.</Text>
-          <Text style={styles.subtitle}>
-            Tell us your name so we can personalise your visit and reach you
-            if anything's needed for your order.
-          </Text>
-        </View>
-
-        {/* Form */}
+        {/* Form anchored to bottom */}
         <View style={styles.form}>
           <Input
             label="YOUR NAME"
@@ -92,8 +90,6 @@ export const SignupScreen: React.FC<Props> = ({navigation}) => {
             keyboardType="phone-pad"
             hint="We'll only use this for order updates and refunds. Promise."
           />
-
-          <View style={styles.spacer} />
 
           <Button
             label="Start Ordering"
@@ -114,18 +110,19 @@ export const SignupScreen: React.FC<Props> = ({navigation}) => {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   flex: {flex: 1, backgroundColor: Colors.background},
-  scroll: {flex: 1},
   container: {
-    flexGrow: 1,
+    flex: 1,
     paddingHorizontal: Spacing.outer,
-    paddingBottom: Spacing.xl,
+    justifyContent: 'space-between',
+  },
+  topContent: {
     alignItems: 'center',
   },
   wordmark: {
@@ -145,7 +142,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 60,
+    marginBottom: Spacing.lg,
     shadowColor: '#1C1410',
     shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.06,
@@ -167,32 +164,28 @@ const styles = StyleSheet.create({
   },
   headlineBlock: {
     alignSelf: 'stretch',
-    marginBottom: Spacing.xl,
   },
   headline: {
     fontFamily: 'Fraunces-Bold',
-    fontSize: 36,
+    fontSize: 32,
     color: Colors.textDark,
-    lineHeight: 40,
+    lineHeight: 38,
     marginBottom: Spacing.sm,
   },
   subtitle: {
     fontFamily: 'Inter-Regular',
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.textMedium,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   form: {
     alignSelf: 'stretch',
     gap: Spacing.md,
-    flex: 1,
   },
-  spacer: {flex: 1, minHeight: 40},
   terms: {
     ...Typography.metaXS,
     color: Colors.textMuted,
     textAlign: 'center',
-    marginTop: Spacing.sm,
   },
   switchRow: {alignItems: 'center', paddingVertical: Spacing.sm},
   switchText: {

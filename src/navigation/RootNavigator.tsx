@@ -12,6 +12,8 @@ import {
   getDeviceId,
   onForegroundMessage,
   setBackgroundMessageHandler,
+  onNotificationOpenedApp,
+  getInitialNotification,
 } from '../services/fcm';
 import {tablesAPI, fcmTokensAPI} from '../services/api';
 import {useSessionHeartbeat} from '../hooks/useSessionHeartbeat';
@@ -37,9 +39,14 @@ function parseURLParams(url: string): Record<string, string> {
 type DeepLinkResult =
   | {kind: 'table'; tableId: string}
   | {kind: 'cube'; qrCodeToken: string}
+  | {kind: 'order'; orderId: string}
   | {kind: 'unknown'};
 
 function parseDeepLink(url: string): DeepLinkResult {
+  // New format: buildcafe://order/UUID
+  const orderMatch = url.match(/\/\/(?:.*\/)?order\/([0-9a-f-]{36})/i);
+  if (orderMatch) {return {kind: 'order', orderId: orderMatch[1]};}
+
   // New format: buildcafe://table/UUID
   const tableMatch = url.match(/\/\/(?:.*\/)?table\/([0-9a-f-]{36})/i);
   if (tableMatch) {return {kind: 'table', tableId: tableMatch[1]};}
@@ -99,14 +106,23 @@ export const RootNavigator: React.FC = () => {
     }
   }, [isAuthenticated, setPendingCubeScan]);
 
+  const handleOrderDeepLink = useCallback((orderId: string) => {
+    if (!isAuthenticated) {return;}
+    if (navRef.isReady()) {
+      navRef.navigate('OrderDetail', {orderId});
+    }
+  }, [isAuthenticated]);
+
   const handleDeepLink = useCallback((url: string) => {
     const link = parseDeepLink(url);
-    if (link.kind === 'table') {
+    if (link.kind === 'order') {
+      handleOrderDeepLink(link.orderId);
+    } else if (link.kind === 'table') {
       handleTableDeepLink(link.tableId);
     } else if (link.kind === 'cube') {
       handleCubeDeepLink(link.qrCodeToken);
     }
-  }, [handleTableDeepLink, handleCubeDeepLink]);
+  }, [handleOrderDeepLink, handleTableDeepLink, handleCubeDeepLink]);
 
   // After login, redirect pending table scan to SessionNamePrompt
   useEffect(() => {
@@ -127,6 +143,29 @@ export const RootNavigator: React.FC = () => {
       navRef.navigate('CubeTracking', {qrCodeToken});
     }
   }, [isAuthenticated, user, pendingCubeScan, setPendingCubeScan]);
+
+  // Background tap: app was in background, user tapped a notification
+  useEffect(() => {
+    if (!isAuthenticated) {return;}
+    const unsub = onNotificationOpenedApp(msg => {
+      const orderId = msg.data?.orderId as string | undefined;
+      if (orderId && navRef.isReady()) {
+        navRef.navigate('OrderDetail', {orderId});
+      }
+    });
+    return unsub;
+  }, [isAuthenticated]);
+
+  // Killed-state tap: app was killed, user tapped a notification to launch it
+  useEffect(() => {
+    if (!isHydrated || !isAuthenticated) {return;}
+    getInitialNotification().then(msg => {
+      const orderId = msg?.data?.orderId as string | undefined;
+      if (orderId && navRef.isReady()) {
+        navRef.navigate('OrderDetail', {orderId});
+      }
+    });
+  }, [isHydrated, isAuthenticated]);
 
   useEffect(() => {
     hydrate();

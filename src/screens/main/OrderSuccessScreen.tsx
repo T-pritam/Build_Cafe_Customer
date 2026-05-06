@@ -64,14 +64,7 @@ export const OrderSuccessScreen: React.FC<Props> = ({navigation, route}) => {
       <View style={styles.footer}>
         <Button
           label="Track your order"
-          onPress={() =>
-            navigation.replace('OrderTracking', {
-              orderId,
-              initialStatus: 'NEW',
-              tableNumber,
-              totalAmount,
-            })
-          }
+          onPress={() => navigation.replace('OrderDetail', {orderId})}
         />
         <TouchableOpacity
           style={styles.secondaryBtn}
