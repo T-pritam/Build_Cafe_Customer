@@ -22,7 +22,8 @@ import {VegBadge} from '../../components/VegBadge';
 import {AddonPickerModal} from '../../components/AddonPickerModal';
 import type {AddonOption} from '../../components/AddonPickerModal';
 import {useCartStore} from '../../store/cartStore';
-import {menuAPI, type MenuItem, type MenuCategory} from '../../services/api';
+import {menuAPI, type MenuItem, type MenuCategory, type TrendingItem} from '../../services/api';
+import {supabase, Channels} from '../../services/supabase';
 import {MainStackParamList} from '../../navigation/types';
 
 const RECENT_KEY = 'buildcafe_recent_searches';
@@ -42,6 +43,7 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [allItems, setAllItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trendingItems, setTrendingItems] = useState<TrendingItem[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [addonTarget, setAddonTarget] = useState<MenuItem | null>(null);
   const addItem = useCartStore(s => s.addItem);
@@ -81,10 +83,39 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
     setRecentSearches([]);
   }, []);
 
+  const fetchTrending = useCallback(async () => {
+    try {
+      const res = await menuAPI.trending();
+      setTrendingItems(res.data.items ?? []);
+    } catch {
+      // silent fail
+    }
+  }, []);
+
   useEffect(() => {
     fetchMenu();
     loadRecent();
-  }, [fetchMenu, loadRecent]);
+    fetchTrending();
+  }, [fetchMenu, loadRecent, fetchTrending]);
+
+  // Realtime: keep search results in sync when admin toggles item availability
+  useEffect(() => {
+    if (!supabase) {return;}
+    const channel = supabase
+      .channel(Channels.menuAvail())
+      .on('broadcast', {event: 'ITEM_AVAILABLE'}, ({payload}) => {
+        const ids: string[] = (payload as {itemIds: string[]}).itemIds ?? [];
+        setAllItems(prev => prev.map(i => ids.includes(i.id) ? {...i, isAvailable: true} : i));
+        setCategories(prev => prev.map(cat => ({...cat, items: cat.items.map(i => ids.includes(i.id) ? {...i, isAvailable: true} : i)})));
+      })
+      .on('broadcast', {event: 'ITEMS_UNAVAILABLE'}, ({payload}) => {
+        const ids: string[] = (payload as {itemIds: string[]}).itemIds ?? [];
+        setAllItems(prev => prev.map(i => ids.includes(i.id) ? {...i, isAvailable: false} : i));
+        setCategories(prev => prev.map(cat => ({...cat, items: cat.items.map(i => ids.includes(i.id) ? {...i, isAvailable: false} : i)})));
+      })
+      .subscribe();
+    return () => { supabase?.removeChannel(channel); };
+  }, []);
 
   const results = query.trim()
     ? allItems.filter(
@@ -142,7 +173,7 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
           <TextInput
             ref={inputRef}
             style={styles.searchInput}
-            placeholder="Search filter coffee, sandwiches…"
+            placeholder="Search filter coffee"
             placeholderTextColor={Colors.textMuted}
             value={query}
             onChangeText={setQuery}
@@ -245,8 +276,57 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>TRENDING</Text>
+              <Text style={styles.trendingMeta}>Last 30 days</Text>
             </View>
-            <Text style={styles.trendingEmpty}>Trending items coming soon</Text>
+            {trendingItems.length === 0 ? (
+              <Text style={styles.trendingEmpty}>No trending data yet</Text>
+            ) : (
+              <View style={styles.trendingList}>
+                {trendingItems.map((item, idx) => {
+                  const qty = getQty(item.id);
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.card}
+                      onPress={() => navigation.navigate('ItemDetail', {item: item as unknown as MenuItem})}>
+                      {item.imageUrl ? (
+                        <Image source={{uri: item.imageUrl}} style={styles.cardImage} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+                          <Icon name="food" size={24} color={Colors.border} />
+                        </View>
+                      )}
+                      {/* <View style={styles.trendingRankBadge}>
+                        <Text style={styles.trendingRankText}>#{idx + 1}</Text>
+                      </View> */}
+                      <View style={styles.cardContent}>
+                        <View style={styles.nameRow}>
+                          <VegBadge isVeg={item.isVeg} />
+                          <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+                        </View>
+                        {/* <Text style={styles.trendingCount}>
+                          🔥 {item.orderCount} orders
+                        </Text> */}
+                        <View style={styles.cardBottom}>
+                          <Text style={styles.cardPrice}>₹{parseFloat(item.price).toFixed(0)}</Text>
+                          {qty > 0 ? (
+                            <View style={styles.qtyChip}>
+                              <Text style={styles.qtyChipText}>{qty} in cart</Text>
+                            </View>
+                          ) : (
+                            <TouchableOpacity
+                              style={styles.addBtn}
+                              onPress={() => handleAdd(item as unknown as MenuItem)}>
+                              <Text style={styles.addBtnText}>ADD</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           {/* Browse by Category */}
@@ -389,6 +469,15 @@ const styles = StyleSheet.create({
   },
   recentChipText: {fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textDark},
   trendingEmpty: {fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textMuted, fontStyle: 'italic'},
+  trendingMeta:  {fontFamily: 'Inter-Regular', fontSize: 12, color: Colors.textMuted},
+  trendingList:  {gap: Spacing.md},
+  trendingRankBadge: {
+    position: 'absolute', top: 8, left: 8,
+    backgroundColor: Colors.accent, borderRadius: Radius.full,
+    width: 22, height: 22, alignItems: 'center', justifyContent: 'center', zIndex: 1,
+  },
+  trendingRankText: {fontFamily: 'Inter-SemiBold', fontSize: 11, color: Colors.white},
+  trendingCount: {fontFamily: 'Inter-Regular', fontSize: 12, color: Colors.textMuted},
   // Category grid (2×2)
   categoryGrid: {
     flexDirection: 'row',
@@ -409,7 +498,8 @@ const styles = StyleSheet.create({
   },
   categoryCardImg: {borderRadius: Radius.lg},
   categoryOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: Radius.lg,
   },

@@ -14,6 +14,8 @@ import {
   StatusBar,
   ActivityIndicator,
   RefreshControl,
+  AppState,
+  type AppStateStatus,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -57,18 +59,38 @@ export const MenuScreen: React.FC = () => {
     fetchMenu();
   }, [fetchMenu]);
 
-  // Supabase Realtime: update availability when items go in/out of stock
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') {
+        fetchMenu();
+      }
+    });
+    return () => sub.remove();
+  }, [fetchMenu]);
+
+  // Supabase Realtime: reflect item availability changes from admin instantly
   useEffect(() => {
     if (!supabase) {return;}
     const channel = supabase
       .channel(Channels.menuAvail())
-      .on('broadcast', {event: 'MENU_AVAILABILITY'}, ({payload}) => {
-        const {menuItemId, isAvailable} = payload as {menuItemId: string; isAvailable: boolean};
+      .on('broadcast', {event: 'ITEM_AVAILABLE'}, ({payload}) => {
+        const ids: string[] = (payload as {itemIds: string[]}).itemIds ?? [];
         setCategories(prev =>
           prev.map(cat => ({
             ...cat,
             items: cat.items.map(item =>
-              item.id === menuItemId ? {...item, isAvailable} : item,
+              ids.includes(item.id) ? {...item, isAvailable: true} : item,
+            ),
+          })),
+        );
+      })
+      .on('broadcast', {event: 'ITEMS_UNAVAILABLE'}, ({payload}) => {
+        const ids: string[] = (payload as {itemIds: string[]}).itemIds ?? [];
+        setCategories(prev =>
+          prev.map(cat => ({
+            ...cat,
+            items: cat.items.map(item =>
+              ids.includes(item.id) ? {...item, isAvailable: false} : item,
             ),
           })),
         );

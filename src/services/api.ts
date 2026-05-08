@@ -183,8 +183,21 @@ export interface MenuCategory {
   items: MenuItem[];
 }
 
+export interface TrendingItem {
+  id: string;
+  name: string;
+  description: string | null;
+  price: string;
+  imageUrl: string | null;
+  isVeg: boolean;
+  isAvailable: boolean;
+  orderCount: number;
+  modifiers: Array<{id: string; name: string; price: string; isAvailable: boolean}>;
+}
+
 export const menuAPI = {
   getMenu: () => api.get<{categories: MenuCategory[]}>('/menu'),
+  trending: () => api.get<{items: TrendingItem[]}>('/menu/trending'),
 };
 
 // ── Orders ────────────────────────────────────────────────────────────────────
