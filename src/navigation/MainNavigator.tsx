@@ -17,6 +17,7 @@ import { HelpSupportScreen } from '../screens/main/HelpSupportScreen';
 import { SessionNamePromptScreen } from '../screens/main/SessionNamePromptScreen';
 import { CubeTrackingScreen } from '../screens/main/CubeTrackingScreen';
 import { OrderDetailScreen } from '../screens/main/OrderDetailScreen';
+import { QRScannerScreen } from '../screens/shared/QRScannerScreen';
 import { Colors } from '../theme';
 import { useCartStore } from '../store/cartStore';
 
@@ -88,6 +89,11 @@ export const MainNavigator: React.FC = () => (
       options={{ presentation: 'modal', headerShown: false }} />
     <Stack.Screen name="CubeTracking" component={CubeTrackingScreen}
       options={{ headerShown: false }} />
+    <Stack.Screen
+      name="QRScanner"
+      component={QRScannerScreen}
+      options={{presentation: 'fullScreenModal'}}
+    />
   </Stack.Navigator>
 );
 

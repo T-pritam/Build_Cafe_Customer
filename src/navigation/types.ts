@@ -1,9 +1,11 @@
+import {NavigatorScreenParams} from '@react-navigation/native';
 import {MenuItem} from '../services/api';
 
 export type AuthStackParamList = {
   Login: undefined;
   Signup: undefined;
   OTP: {phone: string; name?: string; mode: 'login' | 'signup'; deviceId?: string};
+  QRScanner: {context: 'auth'};
 };
 
 export type MainTabParamList = {
@@ -14,7 +16,7 @@ export type MainTabParamList = {
 };
 
 export type MainStackParamList = {
-  Tabs: undefined;
+  Tabs: NavigatorScreenParams<MainTabParamList> | undefined;
   ItemDetail: {item: MenuItem};
   OrderDetail: {orderId: string};
   OrderTracking: {
@@ -30,6 +32,7 @@ export type MainStackParamList = {
   };
   Search: undefined;
   HelpSupport: undefined;
-  SessionNamePrompt: {tableId: string; tableNumber: string};
+  SessionNamePrompt: {tableId: string; tableNumber: string; returnTo?: keyof MainTabParamList};
   CubeTracking: {qrCodeToken: string};
+  QRScanner: {context: 'main' | 'rescan'};
 };

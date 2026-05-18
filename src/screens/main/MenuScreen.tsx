@@ -38,6 +38,7 @@ export const MenuScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [addonTarget, setAddonTarget] = useState<MenuItem | null>(null);
+  const [vegFilter, setVegFilter] = useState<'all' | 'veg' | 'nonveg'>('all');
   const addItem = useCartStore(s => s.addItem);
   const cartItems = useCartStore(s => s.items);
   const user = useAuthStore(s => s.user);
@@ -95,6 +96,9 @@ export const MenuScreen: React.FC = () => {
           })),
         );
       })
+      .on('broadcast', {event: 'MENU_UPDATED'}, () => {
+        fetchMenu();
+      })
       .subscribe();
 
     return () => {
@@ -114,7 +118,9 @@ export const MenuScreen: React.FC = () => {
       categories.find(c => c.name === activeCategory)?.items.some(i => i.id === item.id);
     const matchSearch =
       !search || item.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch && item.isAvailable;
+    const matchVeg =
+      vegFilter === 'all' || (vegFilter === 'veg' ? item.isVeg : !item.isVeg);
+    return matchCat && matchSearch && matchVeg;
   });
 
   const handleAdd = (item: MenuItem) => {
@@ -159,7 +165,9 @@ export const MenuScreen: React.FC = () => {
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
 
       <View style={[styles.topBar, {paddingTop: insets.top + Spacing.md}]}>
-        <TouchableOpacity style={styles.tableChip}>
+        <TouchableOpacity
+          style={styles.tableChip}
+          onPress={() => navigation.navigate('QRScanner', {context: 'main'})}>
           <Icon name="silverware" size={14} color={Colors.white} />
           <Text style={styles.tableChipText}>Table {tableNumber}</Text>
         </TouchableOpacity>
@@ -270,8 +278,9 @@ export const MenuScreen: React.FC = () => {
             return (
               <TouchableOpacity
                 key={item.id}
-                style={styles.card}
-                onPress={() => navigation.navigate('ItemDetail', {item})}
+                style={[styles.card, !item.isAvailable && styles.cardUnavailable]}
+                onPress={item.isAvailable ? () => navigation.navigate('ItemDetail', {item}) : undefined}
+                disabled={!item.isAvailable}
                 activeOpacity={0.95}>
                 {item.imageUrl ? (
                   <Image
@@ -298,7 +307,11 @@ export const MenuScreen: React.FC = () => {
                     <Text style={styles.cardPrice}>
                       ₹{parseFloat(item.price).toFixed(0)}
                     </Text>
-                    {qty > 0 ? (
+                    {!item.isAvailable ? (
+                      <View style={styles.soldOutBadge}>
+                        <Text style={styles.soldOutText}>Sold Out</Text>
+                      </View>
+                    ) : qty > 0 ? (
                       <View style={styles.qtyControl}>
                         <TouchableOpacity
                           style={styles.qtyBtn}
@@ -567,4 +580,35 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
+  cardUnavailable: {opacity: 0.5},
+  soldOutBadge: {
+    backgroundColor: Colors.inputBg,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  soldOutText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 11,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+  },
+  vegFilterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.outer,
+    gap: 10,
+  },
+  vegPill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  vegPillActive: {backgroundColor: Colors.textDark, borderColor: Colors.textDark},
+  vegPillText: {fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textDark},
+  vegPillTextActive: {color: Colors.white},
 });

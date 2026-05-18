@@ -1,4 +1,6 @@
 import {create} from 'zustand';
+import {persist, createJSONStorage} from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CartModifier {
   id: string;
@@ -56,6 +58,7 @@ interface CartState {
   setRewardPointsApplied: (points: number) => void;
   clearSessionOnly: () => void;
   clearSession: () => void;
+  clearAll: () => void;
   resetSessionTimer: () => void;
   setPendingScan: (scan: PendingScan | null) => void;
   setPendingCubeScan: (token: string | null) => void;
@@ -72,7 +75,9 @@ function makeCartKey(id: string, modifiers: CartModifier[]): string {
   return modPart ? `${id}_${modPart}` : id;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
+export const useCartStore = create<CartState>()(
+  persist(
+    (set, get) => ({
   items: [],
   tableNumber: '--',
   tableId: null,
@@ -163,6 +168,24 @@ export const useCartStore = create<CartState>((set, get) => ({
       rewardPointsApplied: 0,
     }),
 
+  // Nuke the entire cart store — used on logout so re-login starts clean.
+  clearAll: () =>
+    set({
+      items:                [],
+      tableId:              null,
+      tableNumber:          '--',
+      sessionId:            null,
+      sessionStartedAt:     null,
+      displayName:          null,
+      rewardPointsApplied:  0,
+      pendingScan:          null,
+      cubeId:               null,
+      cubeSessionId:        null,
+      cubeNumber:           '--',
+      pendingCubeScan:      null,
+      outgoingPushes:       [],
+    }),
+
   // Resets the countdown without touching anything else — used by the Extend button
   resetSessionTimer: () => set({sessionStartedAt: Date.now()}),
 
@@ -206,4 +229,23 @@ export const useCartStore = create<CartState>((set, get) => ({
       0,
     ),
   totalItems: () => get().items.reduce((s, i) => s + i.quantity, 0),
-}));
+    }),
+    {
+      name: 'cart-store',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        items:               state.items,
+        tableNumber:         state.tableNumber,
+        tableId:             state.tableId,
+        sessionId:           state.sessionId,
+        sessionStartedAt:    state.sessionStartedAt,
+        displayName:         state.displayName,
+        rewardPointsApplied: state.rewardPointsApplied,
+        cubeId:              state.cubeId,
+        cubeSessionId:       state.cubeSessionId,
+        cubeNumber:          state.cubeNumber,
+        outgoingPushes:      state.outgoingPushes,
+      }),
+    },
+  ),
+);

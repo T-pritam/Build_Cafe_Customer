@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useCallback} from 'react';
-import {Linking, View, ActivityIndicator, Platform, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import {Linking, View, ActivityIndicator, Platform, Text, StyleSheet, TouchableOpacity, Alert} from 'react-native';
 import {NavigationContainer, createNavigationContainerRef} from '@react-navigation/native';
 import {useAuthStore} from '../store/authStore';
 import {useCartStore} from '../store/cartStore';
@@ -15,7 +15,7 @@ import {
   onNotificationOpenedApp,
   getInitialNotification,
 } from '../services/fcm';
-import {tablesAPI, fcmTokensAPI} from '../services/api';
+import {tablesAPI, fcmTokensAPI, sessionsAPI} from '../services/api';
 import {useSessionHeartbeat} from '../hooks/useSessionHeartbeat';
 import Toast from 'react-native-toast-message';
 import {Colors, Spacing, Radius, Shadow} from '../theme';
@@ -85,6 +85,31 @@ export const RootNavigator: React.FC = () => {
 
       if (!isAuthenticated) {
         setPendingScan({tableId, tableNumber: tableNum});
+        return;
+      }
+
+      // Active session on a DIFFERENT table → confirm switch before terminating.
+      if (currentState.sessionId && currentState.tableId && currentState.tableId !== tableId) {
+        const oldNum = currentState.tableNumber;
+        const oldSessionId = currentState.sessionId;
+        Alert.alert(
+          `Switch to Table ${tableNum}?`,
+          `You're currently at Table ${oldNum}. Switching will end your current session and clear your cart.`,
+          [
+            {text: 'Cancel', style: 'cancel'},
+            {
+              text: 'Switch',
+              style: 'destructive',
+              onPress: () => {
+                sessionsAPI.terminate(oldSessionId).catch(() => {});
+                useCartStore.getState().clearAll();
+                if (navRef.isReady()) {
+                  navRef.navigate('SessionNamePrompt', {tableId, tableNumber: tableNum});
+                }
+              },
+            },
+          ],
+        );
         return;
       }
 
@@ -250,20 +275,16 @@ export const RootNavigator: React.FC = () => {
 
       <PushRequestOverlay />
 
-      {/* Session expiry warning — non-blocking absolute banner (no Modal, touches pass through) */}
-      {showExpiryWarning && (
+      {/* Session expiry countdown warning. At expiry, the hook switches to a 3s
+          Toast (see useSessionHeartbeat.handleExpired), so this banner never
+          sits forever in a "0s" state. */}
+      {showExpiryWarning && secondsLeft > 0 && (
         <View style={styles.warningBannerWrap} pointerEvents="box-none">
           <View style={styles.warningBanner}>
-            <Text style={styles.warningText}>
-              {secondsLeft > 0
-                ? `Session expires in ${secondsLeft}s`
-                : 'Session expiring — scan QR to continue ordering'}
-            </Text>
-            {secondsLeft > 0 && (
-              <TouchableOpacity style={styles.extendBtn} onPress={extendSession}>
-                <Text style={styles.extendBtnText}>Extend</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={styles.warningText}>Session expires in {secondsLeft}s</Text>
+            <TouchableOpacity style={styles.extendBtn} onPress={extendSession}>
+              <Text style={styles.extendBtnText}>Extend</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}

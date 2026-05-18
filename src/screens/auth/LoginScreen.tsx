@@ -9,6 +9,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -49,12 +50,24 @@ export const LoginScreen: React.FC<Props> = ({navigation}) => {
         keyboardShouldPersistTaps="handled">
         <Text style={styles.wordmark}>BUILD CAFE</Text>
 
-        {/* Show table badge if user scanned a QR before logging in */}
-        {pendingScan && (
-          <View style={styles.tableBadge}>
+        {/* Table badge / scan button */}
+        {pendingScan ? (
+          <TouchableOpacity
+            style={styles.tableBadge}
+            onPress={() => navigation.navigate('QRScanner', {context: 'auth'})}
+            activeOpacity={0.75}>
+            <Icon name="qrcode-scan" size={14} color={Colors.textMuted} style={styles.scanIcon} />
             <Text style={styles.tableLabel}>TABLE</Text>
             <Text style={styles.tableNumber}>{pendingScan.tableNumber}</Text>
-          </View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.scanButton}
+            onPress={() => navigation.navigate('QRScanner', {context: 'auth'})}
+            activeOpacity={0.75}>
+            <Icon name="qrcode-scan" size={18} color={Colors.accent} />
+            <Text style={styles.scanButtonText}>Scan table QR</Text>
+          </TouchableOpacity>
         )}
 
         <View style={styles.headlineBlock}>
@@ -135,6 +148,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+  },
+  scanIcon: {
+    marginBottom: 2,
+  },
+  scanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.accentLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginBottom: Spacing.lg,
+  },
+  scanButtonText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 13,
+    color: Colors.accent,
   },
   tableLabel: {
     fontFamily: 'Inter-SemiBold',

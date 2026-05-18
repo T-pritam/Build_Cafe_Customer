@@ -4,13 +4,15 @@ import {useShallow} from 'zustand/react/shallow';
 import Toast from 'react-native-toast-message';
 import {useCartStore} from '../store/cartStore';
 import {sessionsAPI} from '../services/api';
+import {supabase, Channels} from '../services/supabase';
 
 // ── Timing constants (frontend side) ─────────────────────────────────────────
 // Keep BROWSE_TIMEOUT_MINUTES in sync with SESSION_CONFIG.BROWSE_TIMEOUT_MINUTES
 // in BuildCafeBackend/src/config/sessionConfig.ts
 const HEARTBEAT_INTERVAL_MS  = 60_000; // how often we ping the server
-const BROWSE_TIMEOUT_MINUTES = 15;     // match backend SESSION_CONFIG.BROWSE_TIMEOUT_MINUTES
-const WARN_BEFORE_SECONDS    = 120;    // show warning this many seconds before timeout
+const BROWSE_TIMEOUT_MINUTES = 5;      // match backend SESSION_CONFIG.BROWSE_TIMEOUT_MINUTES
+const WARN_BEFORE_SECONDS    = 60;     // show warning this many seconds before timeout
+const EXPIRED_TOAST_MS       = 3_000;  // how long the final "session expired" toast stays
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface HeartbeatState {
@@ -51,7 +53,7 @@ export function useSessionHeartbeat(): HeartbeatState {
       type:           'info',
       text1:          'Table session ended',
       text2:          'Scan the QR code on your table to continue ordering.',
-      visibilityTime: 5000,
+      visibilityTime: EXPIRED_TOAST_MS,
     });
   };
 
@@ -83,7 +85,10 @@ export function useSessionHeartbeat(): HeartbeatState {
     // Also send immediately on session start
     sendHeartbeat();
 
-    // Countdown ticker: checks browse timeout and shows warning
+    // Countdown ticker: checks browse timeout and shows warning.
+    // At expiry, we let the next heartbeat (or realtime SESSION_TERMINATED) call
+    // handleExpired(), which shows a 3s toast and hides the warning banner —
+    // the banner never stays in a permanent "0s" state.
     countdownRef.current = setInterval(() => {
       if (!sessionStartedAt) return;
       const elapsedMs   = Date.now() - sessionStartedAt;
@@ -92,9 +97,9 @@ export function useSessionHeartbeat(): HeartbeatState {
       const remainingSec = Math.max(0, Math.floor(remainingMs / 1000));
 
       if (remainingMs <= 0) {
-        setShowExpiryWarning(true);
-        setSecondsLeft(0);
-        // Fire one immediate heartbeat so expiry is confirmed fast (don't wait 60 s)
+        // Hide the countdown banner; fire one extra heartbeat so server confirms
+        // expiry quickly. handleExpired() will fire the toast + clear local state.
+        setShowExpiryWarning(false);
         if (!extraHeartbeatSent.current) {
           extraHeartbeatSent.current = true;
           sendHeartbeat();
@@ -115,9 +120,18 @@ export function useSessionHeartbeat(): HeartbeatState {
       }
     });
 
+    // Realtime: server terminates session (admin force-close or expiry cron)
+    const rtChannel = supabase
+      ?.channel(Channels.orderSession(sessionId))
+      .on('broadcast', {event: 'SESSION_TERMINATED'}, () => {
+        handleExpired();
+      })
+      .subscribe();
+
     return () => {
       clearTimers();
       subscription.remove();
+      if (rtChannel && supabase) supabase.removeChannel(rtChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, sessionStartedAt]);

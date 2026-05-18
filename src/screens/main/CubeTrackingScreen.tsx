@@ -114,6 +114,20 @@ export const CubeTrackingScreen: React.FC<Props> = ({route, navigation}) => {
           setFeedbackVisible(true);
         }
       })
+      .on('broadcast', {event: 'ORDER_CANCELLED'}, ({payload}) => {
+        const {orderId, reason} = payload as {orderId: string; reason: string};
+        setOrders(prev =>
+          prev.map(o => o.id === orderId ? {...o, status: 'CANCELLED'} : o),
+        );
+        Toast.show({
+          type:           'info',
+          text1:          'Order cancelled',
+          text2:          reason === 'CUSTOMER_LEFT'
+            ? 'Cube auto-released — customer left.'
+            : 'Your cube order was cancelled.',
+          visibilityTime: 4000,
+        });
+      })
       .subscribe();
 
     cubeCh

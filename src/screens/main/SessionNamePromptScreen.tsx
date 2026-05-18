@@ -33,7 +33,7 @@ interface ResumeInfo {
 export const SessionNamePromptScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteT>();
-  const {tableId, tableNumber} = route.params;
+  const {tableId, tableNumber, returnTo} = route.params;
 
   const {user} = useAuthStore();
   const {setSession} = useCartStore();
@@ -45,7 +45,13 @@ export const SessionNamePromptScreen: React.FC = () => {
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
+    // If already logged in with a name, skip the prompt entirely
+    if (user?.name && user.name.trim().length >= 2) {
+      joinTable(user.name.trim());
+      return;
+    }
     setTimeout(() => inputRef.current?.focus(), 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const joinTable = async (overrideName?: string) => {
@@ -74,7 +80,7 @@ export const SessionNamePromptScreen: React.FC = () => {
       }
 
       setSession(tableId, tableNum, id, confirmedName);
-      navigation.replace('Tabs');
+      navigation.replace('Tabs', returnTo ? {screen: returnTo} : undefined);
     } catch (e: any) {
       Toast.show({type: 'error', text1: 'Could not join table', text2: e?.message ?? 'Try again'});
     } finally {

@@ -1,5 +1,7 @@
 import {create} from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useCartStore} from './cartStore';
+import {sessionsAPI} from '../services/api';
 
 export type UserRole = 'CUSTOMER' | 'CAPTAIN' | 'CHEF' | 'ADMIN';
 
@@ -73,8 +75,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    // Terminate any active backend session BEFORE clearing local state so the
+    // table window doesn't keep a ghost session around (which is what caused
+    // re-login + re-scan to produce duplicate "Name (2)" display names).
+    const sessionId = useCartStore.getState().sessionId;
+    if (sessionId) {
+      sessionsAPI.terminate(sessionId).catch(() => {});
+    }
     set({user: null, accessToken: null, refreshToken: null, isAuthenticated: false});
     AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+    useCartStore.getState().clearAll();
   },
 
   hydrate: async () => {

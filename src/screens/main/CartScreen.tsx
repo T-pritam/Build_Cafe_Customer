@@ -38,7 +38,7 @@ export const CartScreen: React.FC = () => {
   const [pushModalVisible, setPushModalVisible] = useState(false);
 
   const total = totalAmount();
-  const gst   = Math.round(total * 0.05);
+  const gst   = total * 0.05;
 
   const rewardDiscount = Math.min(rewardPointsApplied * 0.1, total + gst);
   const grandTotal     = Math.max(0, total + gst - rewardDiscount);
@@ -146,7 +146,7 @@ export const CartScreen: React.FC = () => {
       navigation.navigate('OrderSuccess', {
         orderId,
         tableNumber: tableNumber ?? '',
-        totalAmount: grandTotal.toFixed(0),
+        totalAmount: grandTotal.toFixed(2),
       });
     } catch (e: any) {
       if (e?.code !== 'PAYMENT_CANCELLED') {
@@ -168,9 +168,12 @@ export const CartScreen: React.FC = () => {
         <StatusBar barStyle="dark-content" backgroundColor={Colors.background} translucent={false} />
         <View style={[styles.topBar, {paddingTop: insets.top + Spacing.md}]}>
           <Text style={styles.topBarTitle}>Your Order</Text>
-          <View style={styles.tableChip}>
+          <TouchableOpacity
+            style={styles.tableChip}
+            onPress={() => navigation.navigate('QRScanner', {context: 'rescan'})}>
+            <Icon name="silverware" size={14} color={Colors.white} />
             <Text style={styles.tableChipText}>Table {tableNumber}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.emptyContent}>
           <Icon name="shopping-outline" size={64} color={Colors.border} />
@@ -189,7 +192,10 @@ export const CartScreen: React.FC = () => {
 
       <View style={[styles.topBar, {paddingTop: insets.top + Spacing.md}]}>
         <Text style={styles.topBarTitle}>Your Order</Text>
-        <TouchableOpacity style={styles.tableChip}>
+        <TouchableOpacity
+          style={styles.tableChip}
+          onPress={() => navigation.navigate('QRScanner', {context: 'rescan'})}>
+          <Icon name="silverware" size={14} color={Colors.white} />
           <Text style={styles.tableChipText}>Table {tableNumber}</Text>
         </TouchableOpacity>
       </View>
@@ -326,11 +332,11 @@ export const CartScreen: React.FC = () => {
             <Text style={styles.billTitle}>Bill Summary</Text>
             <View style={styles.billRow}>
               <Text style={styles.billLabel}>Subtotal</Text>
-              <Text style={styles.billValue}>₹{total}</Text>
+              <Text style={styles.billValue}>₹{total.toFixed(2)}</Text>
             </View>
             <View style={styles.billRow}>
               <Text style={styles.billLabel}>GST (5%)</Text>
-              <Text style={styles.billValue}>₹{gst}</Text>
+              <Text style={styles.billValue}>₹{gst.toFixed(2)}</Text>
             </View>
             {rewardPointsApplied > 0 && (
               <View style={styles.billRow}>
@@ -338,13 +344,13 @@ export const CartScreen: React.FC = () => {
                   Reward Points
                 </Text>
                 <Text style={[styles.billValue, {color: Colors.success}]}>
-                  −₹{rewardDiscount.toFixed(0)}
+                  −₹{rewardDiscount.toFixed(2)}
                 </Text>
               </View>
             )}
             <View style={[styles.billRow, styles.billTotalRow]}>
               <Text style={styles.billTotalLabel}>Total</Text>
-              <Text style={styles.billTotalValue}>₹{grandTotal.toFixed(0)}</Text>
+              <Text style={styles.billTotalValue}>₹{grandTotal.toFixed(2)}</Text>
             </View>
           </View>
         )}
@@ -353,7 +359,7 @@ export const CartScreen: React.FC = () => {
       {items.length > 0 && (
         <View style={styles.checkoutBar}>
           <View>
-            <Text style={styles.checkoutTotal}>₹{grandTotal.toFixed(0)}</Text>
+            <Text style={styles.checkoutTotal}>₹{grandTotal.toFixed(2)}</Text>
             <Text style={styles.checkoutMeta}>{items.length} items · incl. GST</Text>
           </View>
           <Button
@@ -392,6 +398,9 @@ const styles = StyleSheet.create({
   },
   topBarTitle: {fontFamily: 'Fraunces-SemiBold', fontSize: 24, color: Colors.textDark},
   tableChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: Colors.textDark,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,

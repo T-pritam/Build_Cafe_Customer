@@ -100,9 +100,22 @@ export const OrderDetailScreen: React.FC<Props> = ({navigation, route}) => {
           setOrder(prev => prev ? {...prev, status: payload.status} : prev);
         }
       })
+      .on('broadcast', {event: 'ORDER_CANCELLED'}, ({payload}) => {
+        if (payload.orderId !== orderId) {return;}
+        const isAdminFreed = payload.reason === 'TABLE_FREED_BY_ADMIN';
+        Toast.show({
+          type:           'info',
+          text1:          'Order cancelled',
+          text2:          isAdminFreed
+            ? 'The cafe freed your table. Please rescan the QR to continue.'
+            : 'Your order was cancelled.',
+          visibilityTime: 4000,
+        });
+        navigation.goBack();
+      })
       .subscribe();
     return () => {supabase?.removeChannel(channel);};
-  }, [orderId, order?.sessionId]);
+  }, [orderId, order?.sessionId, navigation]);
 
   const handleRetryPayment = async () => {
     if (!order) {return;}

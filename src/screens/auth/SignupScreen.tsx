@@ -8,6 +8,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -55,11 +56,15 @@ export const SignupScreen: React.FC<Props> = ({navigation}) => {
         <View style={styles.topContent}>
           <Text style={styles.wordmark}>BUILD CAFE</Text>
 
-          {/* Table badge — dynamic from QR scan */}
-          <View style={styles.tableBadge}>
+          {/* Table badge — tap to scan QR */}
+          <TouchableOpacity
+            style={styles.tableBadge}
+            onPress={() => navigation.navigate('QRScanner', {context: 'auth'})}
+            activeOpacity={0.75}>
+            <Icon name="qrcode-scan" size={14} color={Colors.textMuted} style={styles.scanIcon} />
             <Text style={styles.tableLabel}>TABLE</Text>
             <Text style={styles.tableNumber}>{tableDisplay}</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Headline */}
           <View style={styles.headlineBlock}>
@@ -148,6 +153,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+  },
+  scanIcon: {
+    marginBottom: 2,
   },
   tableLabel: {
     fontFamily: 'Inter-SemiBold',
