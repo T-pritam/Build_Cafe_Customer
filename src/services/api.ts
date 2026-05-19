@@ -172,6 +172,7 @@ export interface MenuItem {
   isVeg: boolean;
   isAvailable: boolean;
   sortOrder: number;
+  maxOrderQty?: number;
   modifiers: Array<{id: string; name: string; price: string; isAvailable: boolean}>;
 }
 

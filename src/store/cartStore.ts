@@ -17,6 +17,7 @@ export interface CartItem {
   image?: string;
   isVeg: boolean;
   modifiers: CartModifier[];
+  maxOrderQty?: number;       // server-computed cap: min(10, floor(stock / recipeQty))
   fromDisplayName?: string;   // set when item came from an accepted push
   pushRequestId?: string;
   originalSessionId?: string;
@@ -94,15 +95,18 @@ export const useCartStore = create<CartState>()(
 
   addItem: item => {
     const cartKey = makeCartKey(item.id, item.modifiers);
+    const max = item.maxOrderQty ?? 10;
     set(state => {
       const existing = state.items.find(i => i.cartKey === cartKey);
       if (existing) {
+        if (existing.quantity >= max) return state;
         return {
           items: state.items.map(i =>
             i.cartKey === cartKey ? {...i, quantity: i.quantity + 1} : i,
           ),
         };
       }
+      if (max < 1) return state;
       return {items: [...state.items, {...item, cartKey, quantity: 1}]};
     });
   },
@@ -115,7 +119,11 @@ export const useCartStore = create<CartState>()(
       items:
         quantity === 0
           ? state.items.filter(i => i.cartKey !== cartKey)
-          : state.items.map(i => (i.cartKey === cartKey ? {...i, quantity} : i)),
+          : state.items.map(i => {
+              if (i.cartKey !== cartKey) return i;
+              const cap = i.maxOrderQty ?? 10;
+              return {...i, quantity: Math.min(quantity, cap)};
+            }),
     })),
 
   clearCart: () => set({items: [], rewardPointsApplied: 0}),

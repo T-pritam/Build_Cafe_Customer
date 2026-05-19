@@ -124,11 +124,25 @@ export const MenuScreen: React.FC = () => {
   });
 
   const handleAdd = (item: MenuItem) => {
+    const max = item.maxOrderQty ?? 10;
+    const currentQty = getItemQty(item.id);
+    if (currentQty >= max) {
+      Toast.show({type: 'info', text1: `Only ${max} available`});
+      return;
+    }
     const available = (item.modifiers ?? []).filter(m => m.isAvailable);
     if (available.length > 0) {
       setAddonTarget(item);
     } else {
-      addItem({id: item.id, name: item.name, price: parseFloat(item.price), isVeg: item.isVeg, image: item.imageUrl ?? undefined, modifiers: []});
+      addItem({
+        id: item.id,
+        name: item.name,
+        price: parseFloat(item.price),
+        isVeg: item.isVeg,
+        image: item.imageUrl ?? undefined,
+        modifiers: [],
+        maxOrderQty: item.maxOrderQty,
+      });
     }
   };
 
@@ -141,6 +155,7 @@ export const MenuScreen: React.FC = () => {
       isVeg: addonTarget.isVeg,
       image: addonTarget.imageUrl ?? undefined,
       modifiers: selected,
+      maxOrderQty: addonTarget.maxOrderQty,
     });
     setAddonTarget(null);
   };
@@ -275,12 +290,15 @@ export const MenuScreen: React.FC = () => {
         <View style={styles.menuList}>
           {filtered.map(item => {
             const qty = getItemQty(item.id);
+            const cap = item.maxOrderQty ?? 10;
+            const soldOut = !item.isAvailable || cap === 0;
+            const atCap = qty >= cap;
             return (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.card, !item.isAvailable && styles.cardUnavailable]}
-                onPress={item.isAvailable ? () => navigation.navigate('ItemDetail', {item}) : undefined}
-                disabled={!item.isAvailable}
+                style={[styles.card, soldOut && styles.cardUnavailable]}
+                onPress={soldOut ? undefined : () => navigation.navigate('ItemDetail', {item})}
+                disabled={soldOut}
                 activeOpacity={0.95}>
                 {item.imageUrl ? (
                   <Image
@@ -307,7 +325,7 @@ export const MenuScreen: React.FC = () => {
                     <Text style={styles.cardPrice}>
                       ₹{parseFloat(item.price).toFixed(0)}
                     </Text>
-                    {!item.isAvailable ? (
+                    {soldOut ? (
                       <View style={styles.soldOutBadge}>
                         <Text style={styles.soldOutText}>Sold Out</Text>
                       </View>
@@ -322,7 +340,8 @@ export const MenuScreen: React.FC = () => {
                         </TouchableOpacity>
                         <Text style={styles.qtyText}>{qty}</Text>
                         <TouchableOpacity
-                          style={styles.qtyBtn}
+                          style={[styles.qtyBtn, atCap && {opacity: 0.35}]}
+                          disabled={atCap}
                           onPress={() => handleAdd(item)}>
                           <Icon name="plus" size={14} color={Colors.textDark} />
                         </TouchableOpacity>

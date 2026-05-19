@@ -59,6 +59,7 @@ export const ItemDetailScreen: React.FC<Props> = ({navigation, route}) => {
       isVeg: item.isVeg,
       image: item.imageUrl ?? undefined,
       modifiers: selectedAddons,
+      maxOrderQty: item.maxOrderQty,
     });
     navigation.goBack();
   };

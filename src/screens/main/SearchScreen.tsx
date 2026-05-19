@@ -134,7 +134,15 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
     if (available.length > 0) {
       setAddonTarget(item);
     } else {
-      addItem({id: item.id, name: item.name, price: parseFloat(item.price), isVeg: item.isVeg, image: item.imageUrl ?? undefined, modifiers: []});
+      addItem({
+        id: item.id,
+        name: item.name,
+        price: parseFloat(item.price),
+        isVeg: item.isVeg,
+        image: item.imageUrl ?? undefined,
+        modifiers: [],
+        maxOrderQty: item.maxOrderQty,
+      });
     }
   };
 
@@ -147,6 +155,7 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
       isVeg: addonTarget.isVeg,
       image: addonTarget.imageUrl ?? undefined,
       modifiers: selected,
+      maxOrderQty: addonTarget.maxOrderQty,
     });
     setAddonTarget(null);
   };
