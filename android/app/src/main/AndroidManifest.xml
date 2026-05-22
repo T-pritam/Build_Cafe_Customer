@@ -35,6 +35,17 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="buildcafecustomer" />
         </intent-filter>
+        <!-- HTTPS App Links — lets the app open table-scan / order / cube deep links.
+             Requires https://cafe.tach21.com/.well-known/assetlinks.json to be reachable
+             and to list this app's package + signing SHA-256. -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="cafe.tach21.com" android:path="/scan" />
+            <data android:scheme="https" android:host="cafe.tach21.com" android:pathPrefix="/order/" />
+            <data android:scheme="https" android:host="cafe.tach21.com" android:pathPrefix="/cube/" />
+        </intent-filter>
       </activity>
 
       <meta-data
