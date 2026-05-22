@@ -19,6 +19,7 @@ export type MainStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList> | undefined;
   ItemDetail: {item: MenuItem};
   OrderDetail: {orderId: string};
+  Rewards: undefined;
   OrderTracking: {
     orderId: string;
     initialStatus: string;

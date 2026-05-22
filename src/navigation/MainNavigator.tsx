@@ -17,6 +17,7 @@ import { HelpSupportScreen } from '../screens/main/HelpSupportScreen';
 import { SessionNamePromptScreen } from '../screens/main/SessionNamePromptScreen';
 import { CubeTrackingScreen } from '../screens/main/CubeTrackingScreen';
 import { OrderDetailScreen } from '../screens/main/OrderDetailScreen';
+import { RewardsScreen } from '../screens/main/RewardsScreen';
 import { QRScannerScreen } from '../screens/shared/QRScannerScreen';
 import { Colors } from '../theme';
 import { useCartStore } from '../store/cartStore';
@@ -81,6 +82,7 @@ export const MainNavigator: React.FC = () => (
     <Stack.Screen name="Tabs" component={TabNavigator} />
     <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
     <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+    <Stack.Screen name="Rewards" component={RewardsScreen} />
     <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
     <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ gestureEnabled: false }} />
     <Stack.Screen name="Search" component={SearchScreen} />

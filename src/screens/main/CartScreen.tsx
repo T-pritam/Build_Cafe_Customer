@@ -22,7 +22,7 @@ import {useAuthStore} from '../../store/authStore';
 import {VegBadge} from '../../components/VegBadge';
 import {Button} from '../../components/Button';
 import {PushFriendSelectorModal} from '../../components/PushFriendSelectorModal';
-import {ordersAPI, pushRequestsAPI} from '../../services/api';
+import {ordersAPI, pushRequestsAPI, rewardsAPI} from '../../services/api';
 
 export const CartScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -36,14 +36,26 @@ export const CartScreen: React.FC = () => {
   const {user} = useAuthStore();
   const [loading, setLoading]           = useState(false);
   const [pushModalVisible, setPushModalVisible] = useState(false);
+  const [pointValue, setPointValue]           = useState(1);
+  const [redeemPercent, setRedeemPercent]     = useState(20);
+  const [availablePoints, setAvailablePoints] = useState(user?.rewardPointsBalance ?? 0);
 
   const total = totalAmount();
   const gst   = total * 0.05;
 
-  const rewardDiscount = Math.min(rewardPointsApplied * 0.1, total + gst);
-  const grandTotal     = Math.max(0, total + gst - rewardDiscount);
-  const maxRedeemablePoints = Math.floor((total + gst) / 0.1);
-  const availablePoints     = user?.rewardPointsBalance ?? 0;
+  const rewardDiscount      = Math.min(rewardPointsApplied * pointValue, total + gst);
+  const grandTotal          = Math.max(0, total + gst - rewardDiscount);
+  const maxRedeemablePoints = Math.floor(((total + gst) * redeemPercent / 100) / pointValue);
+
+  useEffect(() => {
+    rewardsAPI.balance()
+      .then(res => {
+        setPointValue(res.data.pointValue || 1);
+        setRedeemPercent(res.data.redeemPercent ?? 20);
+        setAvailablePoints(res.data.points ?? 0);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Edge case 9: hydrate outgoing pushes on screen focus ───────────────────
   // The cartStore's outgoingPushes is the source of truth during the session,
@@ -311,7 +323,7 @@ export const CartScreen: React.FC = () => {
                   setRewardPointsApplied(Math.min(availablePoints, maxRedeemablePoints))
                 }>
                 <Text style={styles.rewardApplyText}>
-                  Apply (saves ₹{(Math.min(availablePoints, maxRedeemablePoints) * 0.1).toFixed(0)})
+                  Apply (saves ₹{(Math.min(availablePoints, maxRedeemablePoints) * pointValue).toFixed(0)})
                 </Text>
               </TouchableOpacity>
             ) : (

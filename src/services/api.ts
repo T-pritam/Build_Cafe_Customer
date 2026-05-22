@@ -262,6 +262,7 @@ export const ordersAPI = {
       gstAmount: string;
       discountAmount: string;
       rewardPointsRedeemed: number;
+      pointsEarned: number;
       totalAmount: string;
       createdAt: string;
       sessionId: string | null;
@@ -365,9 +366,36 @@ export const pushRequestsAPI = {
 
 // ── Rewards ───────────────────────────────────────────────────────────────────
 
+export interface RewardTransaction {
+  id: string;
+  delta: number;
+  reason: 'EARNED' | 'REDEEMED' | 'ADMIN_ADJUSTMENT' | 'EXPIRY';
+  note: string | null;
+  rate: number | null;
+  createdAt: string;
+  order: {
+    id: string;
+    status: string;
+    totalAmount: string;
+    createdAt: string;
+  } | null;
+}
+
 export const rewardsAPI = {
   balance: () =>
-    api.get<{rewardPointsBalance: number; customerId: string}>('/rewards/balance'),
+    api.get<{
+      points: number;
+      worthInRupees: number;
+      pointValue: number;
+      redeemPercent: number;
+      earnPercent: number;
+    }>('/rewards/balance'),
+
+  transactions: (params?: {limit?: number; offset?: number}) =>
+    api.get<{transactions: RewardTransaction[]; hasMore: boolean}>(
+      '/rewards/transactions',
+      {params},
+    ),
 };
 
 // ── Feedback ─────────────────────────────────────────────────────────────────

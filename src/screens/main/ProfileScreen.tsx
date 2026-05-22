@@ -34,6 +34,7 @@ const APP_PLATFORM: 'ios' | 'android' | 'web' = Platform.OS === 'ios' ? 'ios' : 
 
 const MENU_ITEMS = [
   {icon: 'clipboard-list-outline', label: 'Order History', badge: null},
+  {icon: 'star-circle-outline', label: 'My Rewards', badge: null},
   {icon: 'bell-outline', label: 'Notifications', badge: null},
   {icon: 'help-circle-outline', label: 'Help & Support', badge: null},
   {icon: 'shield-account-outline', label: 'Privacy Policy', badge: null},
@@ -251,6 +252,7 @@ export const ProfileScreen: React.FC = () => {
               style={[styles.menuRow, idx < MENU_ITEMS.length - 1 && styles.menuRowBorder]}
               onPress={() => {
                 if (item.label === 'Order History') {(navigation as any).navigate('Orders');}
+                if (item.label === 'My Rewards')     {navigation.navigate('Rewards');}
                 if (item.label === 'Notifications')  {Linking.openSettings();}
                 if (item.label === 'Help & Support')  {navigation.navigate('HelpSupport');}
                 if (item.label === 'Privacy Policy') {

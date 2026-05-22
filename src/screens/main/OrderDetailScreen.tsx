@@ -46,6 +46,7 @@ type OrderDetail = {
   gstAmount: string;
   discountAmount: string;
   rewardPointsRedeemed: number;
+  pointsEarned: number;
   totalAmount: string;
   createdAt: string;
   sessionId: string | null;
@@ -335,6 +336,12 @@ export const OrderDetailScreen: React.FC<Props> = ({navigation, route}) => {
               <Text style={styles.billValue}>{order.paymentMode}</Text>
             </View>
           )}
+          {order.pointsEarned > 0 && (
+            <View style={styles.billRow}>
+              <Text style={styles.billLabel}>Points earned</Text>
+              <Text style={[styles.billValue, styles.billEarned]}>+{order.pointsEarned} pts</Text>
+            </View>
+          )}
         </View>
 
         {/* Retry payment */}
@@ -428,6 +435,7 @@ const styles = StyleSheet.create({
   billLabel: {fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textMuted},
   billValue: {fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textDark},
   billDiscount: {color: Colors.success},
+  billEarned: {color: Colors.accent, fontFamily: 'Inter-SemiBold'},
   divider: {height: 1, backgroundColor: Colors.border + '50', marginVertical: 4},
   billTotal: {fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textDark},
   billTotalValue: {fontFamily: 'Fraunces-Bold', fontSize: 20, color: Colors.textDark},
