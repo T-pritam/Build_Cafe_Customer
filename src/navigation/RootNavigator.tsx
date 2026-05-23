@@ -21,6 +21,7 @@ import Toast from 'react-native-toast-message';
 import {Colors, Spacing, Radius, Shadow} from '../theme';
 import {getOrCreateFingerprint} from '../utils/fingerprint';
 import {PushRequestOverlay} from '../components/PushRequestOverlay';
+import {ActiveOrderBar} from '../components/ActiveOrderBar';
 
 export const navRef = createNavigationContainerRef<MainStackParamList>();
 
@@ -274,6 +275,10 @@ export const RootNavigator: React.FC = () => {
       </NavigationContainer>
 
       <PushRequestOverlay />
+
+      {/* Persistent active-order bar. Lives at the root so it's painted above
+          MainNavigator's tab bar. Self-gates on auth + current route. */}
+      <ActiveOrderBar />
 
       {/* Session expiry countdown warning. At expiry, the hook switches to a 3s
           Toast (see useSessionHeartbeat.handleExpired), so this banner never

@@ -91,7 +91,7 @@ export const OrderDetailScreen: React.FC<Props> = ({navigation, route}) => {
     fetchOrder();
   }, [fetchOrder]);
 
-  // Realtime tracking via session channel
+  // Realtime tracking via session channel (dine-in)
   useEffect(() => {
     if (!order?.sessionId || !supabase) {return;}
     const channel = supabase
@@ -117,6 +117,21 @@ export const OrderDetailScreen: React.FC<Props> = ({navigation, route}) => {
       .subscribe();
     return () => {supabase?.removeChannel(channel);};
   }, [orderId, order?.sessionId, navigation]);
+
+  // Per-order Realtime — covers takeaway and GYM_APP orders that have no
+  // sessionId (and works alongside the session channel above as a safety net).
+  useEffect(() => {
+    if (!orderId || !supabase) {return;}
+    const channel = supabase
+      .channel(Channels.orderById(orderId))
+      .on('broadcast', {event: 'ORDER_STATUS'}, ({payload}) => {
+        if (payload.orderId === orderId) {
+          setOrder(prev => prev ? {...prev, status: payload.status} : prev);
+        }
+      })
+      .subscribe();
+    return () => {supabase?.removeChannel(channel);};
+  }, [orderId]);
 
   const handleRetryPayment = async () => {
     if (!order) {return;}

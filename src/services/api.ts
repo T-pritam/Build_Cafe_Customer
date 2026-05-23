@@ -299,6 +299,27 @@ export const ordersAPI = {
         items: Array<{name: string; quantity: number; unitPrice: string}>;
       }>;
     }>('/orders', {params: {sessionId}}),
+
+  // Most-recent in-flight order (powers the persistent ActiveOrderBar).
+  // Returns customerId even when no order is active, so the bar can subscribe
+  // to its per-customer discovery channel before the user places an order.
+  getActive: () =>
+    api.get<{
+      customerId: string;
+      order: {
+        id: string;
+        status: string;
+        orderSource: 'CAFE_APP' | 'GYM_APP';
+        orderType: string;
+        totalAmount: string;
+        createdAt: string;
+        sessionId: string | null;
+        tableNumber: number | null;
+        cubeNumber: number | null;
+        deliveryPin: string | null;
+        shortRef: string;
+      } | null;
+    }>('/orders/active'),
 };
 
 // ── Push Requests ─────────────────────────────────────────────────────────────
