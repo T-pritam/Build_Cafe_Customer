@@ -87,14 +87,18 @@ export const OrdersScreen: React.FC = () => {
   useEffect(() => {
     if (!sessionId || !supabase) {return;}
     const channel = supabase
-      .channel(Channels.orderSession(sessionId))
+      .channel(Channels.orderSession(sessionId), {config: {private: true}})
       .on('broadcast', {event: 'ORDER_STATUS'}, ({payload}) => {
         const {orderId, status} = payload as {orderId: string; status: OrderStatus};
         setOrders(prev =>
           prev.map(o => (o.id === orderId ? {...o, status} : o)),
         );
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] orders/orderSession status:', status, err);
+        }
+      });
 
     return () => {
       supabase?.removeChannel(channel);

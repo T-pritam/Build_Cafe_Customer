@@ -43,7 +43,7 @@ export function usePushRequests() {
   useEffect(() => {
     if (!sessionId || !supabase) return;
 
-    const channel = supabase.channel(Channels.push(sessionId));
+    const channel = supabase.channel(Channels.push(sessionId), {config: {private: true}});
 
     channel
       // ── Incoming push events ───────────────────────────────────────────
@@ -101,7 +101,11 @@ export function usePushRequests() {
           });
         }
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] push status:', status, err);
+        }
+      });
 
     return () => {
       supabase!.removeChannel(channel);

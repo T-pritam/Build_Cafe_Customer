@@ -20,6 +20,13 @@ export const supabase: SupabaseClient | null =
       })
     : null;
 
+// Realtime Authorization is enabled on the cafe project; private channels need
+// a JWT on the websocket. The anon key is itself a valid anon-role JWT and
+// matches the RLS policy on realtime.messages (see backend SQL).
+if (supabase && supabaseAnonKey) {
+  supabase.realtime.setAuth(supabaseAnonKey);
+}
+
 export const Channels = {
   orderSession:  (sessionId: string)    => `orders:session:${sessionId}`,
   orderById:     (orderId: string)      => `orders:order:${orderId}`,

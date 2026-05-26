@@ -101,8 +101,8 @@ export const CubeTrackingScreen: React.FC<Props> = ({route, navigation}) => {
   useEffect(() => {
     if (!sessionId || !supabase) return;
 
-    const orderCh = supabase.channel(Channels.orderSession(sessionId));
-    const cubeCh  = supabase.channel(Channels.cubeSession(sessionId));
+    const orderCh = supabase.channel(Channels.orderSession(sessionId), {config: {private: true}});
+    const cubeCh  = supabase.channel(Channels.cubeSession(sessionId), {config: {private: true}});
 
     orderCh
       .on('broadcast', {event: 'ORDER_STATUS'}, ({payload}) => {
@@ -128,13 +128,21 @@ export const CubeTrackingScreen: React.FC<Props> = ({route, navigation}) => {
           visibilityTime: 4000,
         });
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] cubeTracking/orderSession status:', status, err);
+        }
+      });
 
     cubeCh
       .on('broadcast', {event: 'CUBE_RELEASED'}, () => {
         setReleasedVisible(true);
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] cubeSession status:', status, err);
+        }
+      });
 
     return () => {
       supabase!.removeChannel(orderCh);

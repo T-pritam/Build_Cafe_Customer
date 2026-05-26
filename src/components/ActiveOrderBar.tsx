@@ -111,7 +111,7 @@ export const ActiveOrderBar: React.FC = () => {
     const supa = supabase;
     if (!supa || !orderId) return undefined;
     const channel = supa
-      .channel(Channels.orderById(orderId))
+      .channel(Channels.orderById(orderId), {config: {private: true}})
       .on('broadcast', {event: 'ORDER_STATUS'}, ({payload}: any) => {
         const status: string | undefined = payload?.status;
         if (!status) return;
@@ -129,7 +129,11 @@ export const ActiveOrderBar: React.FC = () => {
         });
         clearActiveOrder();
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] orderById status:', status, err);
+        }
+      });
     return () => {
       try { supa.removeChannel(channel); } catch { /* ignore */ }
     };
@@ -141,7 +145,7 @@ export const ActiveOrderBar: React.FC = () => {
     const supa = supabase;
     if (!supa || !customerId || orderId) return undefined;
     const channel = supa
-      .channel(Channels.orderCustomer(customerId))
+      .channel(Channels.orderCustomer(customerId), {config: {private: true}})
       .on('broadcast', {event: 'ORDER_STATUS'}, async ({payload}: any) => {
         const status: string | undefined = payload?.status;
         if (!status || isTerminal(status)) return;
@@ -153,7 +157,11 @@ export const ActiveOrderBar: React.FC = () => {
         } catch { /* ignore */ }
         finally { discoveryFetching.current = false; }
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] orderCustomer status:', status, err);
+        }
+      });
     return () => {
       try { supa.removeChannel(channel); } catch { /* ignore */ }
     };

@@ -95,7 +95,7 @@ export const OrderDetailScreen: React.FC<Props> = ({navigation, route}) => {
   useEffect(() => {
     if (!order?.sessionId || !supabase) {return;}
     const channel = supabase
-      .channel(Channels.orderSession(order.sessionId))
+      .channel(Channels.orderSession(order.sessionId), {config: {private: true}})
       .on('broadcast', {event: 'ORDER_STATUS'}, ({payload}) => {
         if (payload.orderId === orderId) {
           setOrder(prev => prev ? {...prev, status: payload.status} : prev);
@@ -114,7 +114,11 @@ export const OrderDetailScreen: React.FC<Props> = ({navigation, route}) => {
         });
         navigation.goBack();
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] orderDetail/orderSession status:', status, err);
+        }
+      });
     return () => {supabase?.removeChannel(channel);};
   }, [orderId, order?.sessionId, navigation]);
 
@@ -123,13 +127,17 @@ export const OrderDetailScreen: React.FC<Props> = ({navigation, route}) => {
   useEffect(() => {
     if (!orderId || !supabase) {return;}
     const channel = supabase
-      .channel(Channels.orderById(orderId))
+      .channel(Channels.orderById(orderId), {config: {private: true}})
       .on('broadcast', {event: 'ORDER_STATUS'}, ({payload}) => {
         if (payload.orderId === orderId) {
           setOrder(prev => prev ? {...prev, status: payload.status} : prev);
         }
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] orderDetail/orderById status:', status, err);
+        }
+      });
     return () => {supabase?.removeChannel(channel);};
   }, [orderId]);
 

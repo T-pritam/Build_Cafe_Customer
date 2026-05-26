@@ -122,11 +122,15 @@ export function useSessionHeartbeat(): HeartbeatState {
 
     // Realtime: server terminates session (admin force-close or expiry cron)
     const rtChannel = supabase
-      ?.channel(Channels.orderSession(sessionId))
+      ?.channel(Channels.orderSession(sessionId), {config: {private: true}})
       .on('broadcast', {event: 'SESSION_TERMINATED'}, () => {
         handleExpired();
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] heartbeat/orderSession status:', status, err);
+        }
+      });
 
     return () => {
       clearTimers();

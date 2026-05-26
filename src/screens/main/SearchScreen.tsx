@@ -102,7 +102,7 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
   useEffect(() => {
     if (!supabase) {return;}
     const channel = supabase
-      .channel(Channels.menuAvail())
+      .channel(Channels.menuAvail(), {config: {private: true}})
       .on('broadcast', {event: 'ITEM_AVAILABLE'}, ({payload}) => {
         const ids: string[] = (payload as {itemIds: string[]}).itemIds ?? [];
         setAllItems(prev => prev.map(i => ids.includes(i.id) ? {...i, isAvailable: true} : i));
@@ -113,7 +113,11 @@ export const SearchScreen: React.FC<Props> = ({navigation}) => {
         setAllItems(prev => prev.map(i => ids.includes(i.id) ? {...i, isAvailable: false} : i));
         setCategories(prev => prev.map(cat => ({...cat, items: cat.items.map(i => ids.includes(i.id) ? {...i, isAvailable: false} : i)})));
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] search/menuAvail status:', status, err);
+        }
+      });
     return () => { supabase?.removeChannel(channel); };
   }, []);
 

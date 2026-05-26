@@ -73,7 +73,7 @@ export const MenuScreen: React.FC = () => {
   useEffect(() => {
     if (!supabase) {return;}
     const channel = supabase
-      .channel(Channels.menuAvail())
+      .channel(Channels.menuAvail(), {config: {private: true}})
       .on('broadcast', {event: 'ITEM_AVAILABLE'}, ({payload}) => {
         const ids: string[] = (payload as {itemIds: string[]}).itemIds ?? [];
         setCategories(prev =>
@@ -99,7 +99,11 @@ export const MenuScreen: React.FC = () => {
       .on('broadcast', {event: 'MENU_UPDATED'}, () => {
         fetchMenu();
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== 'SUBSCRIBED') {
+          console.warn('[realtime] menu/availability status:', status, err);
+        }
+      });
 
     return () => {
       supabase?.removeChannel(channel);
