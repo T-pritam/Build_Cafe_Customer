@@ -77,7 +77,7 @@ SUPABASE_ANON_KEY=your-supabase-anon-key
 RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxxxxxx
 ```
 
-Place `google-services.json` (Android) in `android/app/` and `GoogleService-Info.plist` (iOS) in `ios/customer/`. See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for step-by-step Firebase configuration.
+Place `google-services.json` (Android) in `android/app/` and `GoogleService-Info.plist` (iOS) in `ios/customer/`.
 
 ---
 
