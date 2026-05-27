@@ -1,97 +1,145 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# BuildCafeCustomer
 
-# Getting Started
+> Scan a table QR, browse the menu, and track your order in real time — a mobile-first cafe ordering app built for speed and simplicity.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+![React Native](https://img.shields.io/badge/React_Native-0.85-61DAFB?style=flat-square&logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Realtime-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
+![Razorpay](https://img.shields.io/badge/Payments-Razorpay-0C4887?style=flat-square)
+![Firebase](https://img.shields.io/badge/Firebase-FCM-FFCA28?style=flat-square&logo=firebase&logoColor=black)
+![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
 
-## Step 1: Start Metro
+---
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Demo
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+<!-- TODO: Add screenshots — home screen, menu grid, cart, order tracking, rewards -->
+> Screenshots coming soon. Contact the author for a live demo.
 
-```sh
-# Using npm
-npm start
+---
 
-# OR using Yarn
-yarn start
+## Features
+
+- **QR-based table sessions** — scan a table QR code to instantly start a named session and access the full menu
+- **Real-time order tracking** — live status updates from kitchen preparation through to delivery, powered by Supabase Realtime
+- **Integrated payments** — Razorpay checkout embedded in the order flow with receipt confirmation
+- **Reward points system** — earn and redeem points across visits; current balance visible at all times
+- **Modifier-aware cart** — menu items support customisation options (size, extras, exclusions) before checkout
+- **OTP authentication** — phone-number login with one-time password, no password required
+- **Push notifications** — Firebase FCM alerts for every order status change
+- **Order history** — full history with item-level feedback and star ratings
+- **Session continuity** — resume an existing session after app restart
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | React Native 0.85.2 |
+| Language | TypeScript 5.8 |
+| Navigation | React Navigation (native-stack, bottom-tabs) |
+| State Management | Zustand 5.0 |
+| Backend / Realtime | Supabase + Axios |
+| Payments | Razorpay React Native SDK |
+| Push Notifications | Firebase Cloud Messaging + Notifee |
+| Camera / QR Scanner | react-native-vision-camera |
+| Local Storage | AsyncStorage |
+| Env Config | react-native-config |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- React Native CLI
+- Android Studio (for Android) or Xcode 14+ (for iOS)
+- A running instance of [BuildCafeBackend](../BuildCafeBackend)
+
+### Installation
+
+```bash
+git clone https://github.com/T-pritam/Build_Cafe_Customer.git
+cd Build_Cafe_Customer
+npm install
 ```
 
-## Step 2: Build and run your app
+### Environment Setup
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Create a `.env` file in the project root:
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```env
+API_BASE_URL=https://your-backend-url.com
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
+RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxxxxxxxx
 ```
 
-### iOS
+Place `google-services.json` (Android) in `android/app/` and `GoogleService-Info.plist` (iOS) in `ios/customer/`. See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for step-by-step Firebase configuration.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+---
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+## Usage
 
-```sh
-bundle install
+**Start the Metro bundler:**
+
+```bash
+npx react-native start
 ```
 
-Then, and every time you update your native dependencies, run:
+**Run on Android:**
 
-```sh
-bundle exec pod install
+```bash
+npx react-native run-android
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+**Run on iOS:**
 
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+```bash
+cd ios && pod install && cd ..
+npx react-native run-ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Project Structure
 
-## Step 3: Modify your app
+```
+Build_Cafe_Customer/
+├── src/
+│   ├── screens/          # auth/, main/, shared/ — Auth, Menu, Cart, Orders, Rewards, Profile, QR scanner, etc.
+│   ├── components/       # Reusable UI components
+│   ├── navigation/       # Root, Auth, and Main navigators
+│   ├── store/            # Zustand stores (auth, cart, activeOrder)
+│   ├── services/         # api.ts (Axios), supabase.ts, fcm.ts
+│   ├── hooks/            # Custom React hooks (push requests, session heartbeat)
+│   ├── theme/            # Theme tokens
+│   ├── types/            # Ambient/module type declarations
+│   ├── utils/            # Helpers (QR parsing, fingerprint)
+│   └── assets/           # Images, icons
+├── android/              # Android native project
+├── ios/                  # iOS native project
+└── package.json
+```
 
-Now that you have successfully run the app, let's make changes!
+---
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+## Contributing
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+This is a proprietary project. Contributions are not open to the public. If you are a team member, open an internal pull request with a clear description of your changes and the problem being solved.
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+---
 
-## Congratulations! :tada:
+## License
 
-You've successfully run and modified your React Native App. :partying_face:
+© 2024 T Pritam. All rights reserved.  
+This software is proprietary. No license is granted to use, copy, modify, or distribute without explicit written permission from the author.
 
-### Now what?
+---
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Author
 
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+**T Pritam**  
+[GitHub](https://github.com/T-pritam) · [LinkedIn](https://www.linkedin.com/in/t-pritam)
