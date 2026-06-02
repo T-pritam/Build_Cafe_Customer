@@ -23,6 +23,7 @@ import {VegBadge} from '../../components/VegBadge';
 import {Button} from '../../components/Button';
 import {PushFriendSelectorModal} from '../../components/PushFriendSelectorModal';
 import {ordersAPI, pushRequestsAPI, rewardsAPI} from '../../services/api';
+import {useCafeStatusStore} from '../../store/cafeStatusStore';
 
 export const CartScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -34,6 +35,7 @@ export const CartScreen: React.FC = () => {
     outgoingPushes, removeOutgoingPush, restoreOutgoingPush,
   } = useCartStore();
   const {user} = useAuthStore();
+  const cafeIsOpen = useCafeStatusStore(s => s.isOpen);
   const [loading, setLoading]           = useState(false);
   const [pushModalVisible, setPushModalVisible] = useState(false);
   const [pointValue, setPointValue]           = useState(1);
@@ -93,6 +95,10 @@ export const CartScreen: React.FC = () => {
   };
 
   const handleCheckout = async () => {
+    if (!cafeIsOpen) {
+      Toast.show({type: 'error', text1: 'Cafe is closed', text2: 'We are not accepting orders right now.'});
+      return;
+    }
     if (items.length === 0) {
       Toast.show({type: 'error', text1: 'Your cart is empty'});
       return;

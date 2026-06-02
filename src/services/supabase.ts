@@ -34,4 +34,5 @@ export const Channels = {
   menuAvail:     () => 'menu:availability',
   push:          (sessionId: string)    => `push:${sessionId}`,
   cubeSession:   (sessionId: string)    => `cube:session:${sessionId}`,
+  cafeStatus:    () => 'cafe:status',
 };

@@ -26,6 +26,7 @@ import {AddonPickerModal} from '../../components/AddonPickerModal';
 import type {AddonOption} from '../../components/AddonPickerModal';
 import {useCartStore} from '../../store/cartStore';
 import {useAuthStore} from '../../store/authStore';
+import {useCafeStatusStore} from '../../store/cafeStatusStore';
 import {menuAPI, type MenuCategory, type MenuItem} from '../../services/api';
 import {supabase, Channels} from '../../services/supabase';
 
@@ -43,6 +44,7 @@ export const MenuScreen: React.FC = () => {
   const cartItems = useCartStore(s => s.items);
   const user = useAuthStore(s => s.user);
   const tableNumber = useCartStore(s => s.tableNumber);
+  const {isOpen: cafeIsOpen, fetchStatus: fetchCafeStatus, subscribeRealtime} = useCafeStatusStore();
 
   const fetchMenu = useCallback(async () => {
     try {
@@ -58,7 +60,10 @@ export const MenuScreen: React.FC = () => {
 
   useEffect(() => {
     fetchMenu();
-  }, [fetchMenu]);
+    fetchCafeStatus();
+    const unsubscribe = subscribeRealtime();
+    return unsubscribe;
+  }, [fetchMenu, fetchCafeStatus, subscribeRealtime]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
@@ -211,6 +216,16 @@ export const MenuScreen: React.FC = () => {
             tintColor={Colors.accent}
           />
         }>
+        {!cafeIsOpen && (
+          <View style={styles.cafeClosedBanner}>
+            <Icon name="store-off" size={18} color="#991b1b" />
+            <View style={{flex: 1, marginLeft: 8}}>
+              <Text style={styles.cafeClosedTitle}>Cafe is Closed</Text>
+              <Text style={styles.cafeClosedSub}>We are not accepting orders right now. Please check back soon.</Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.greetingText}>
             {greeting()}, {user?.name?.split(' ')[0] || 'there'}.
@@ -352,8 +367,9 @@ export const MenuScreen: React.FC = () => {
                       </View>
                     ) : (
                       <TouchableOpacity
-                        style={styles.addBtn}
-                        onPress={() => handleAdd(item)}>
+                        style={[styles.addBtn, !cafeIsOpen && styles.addBtnDisabled]}
+                        onPress={() => cafeIsOpen ? handleAdd(item) : Toast.show({type: 'error', text1: 'Cafe is closed', text2: 'We are not accepting orders right now.'})}
+                        disabled={!cafeIsOpen}>
                         <Text style={styles.addBtnText}>ADD</Text>
                       </TouchableOpacity>
                     )}
@@ -634,4 +650,18 @@ const styles = StyleSheet.create({
   vegPillActive: {backgroundColor: Colors.textDark, borderColor: Colors.textDark},
   vegPillText: {fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textDark},
   vegPillTextActive: {color: Colors.white},
+  addBtnDisabled: {borderColor: Colors.textMuted, opacity: 0.4},
+  cafeClosedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fef2f2',
+    borderLeftWidth: 4,
+    borderLeftColor: '#dc2626',
+    borderRadius: 8,
+    padding: 14,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  cafeClosedTitle: {fontFamily: 'Inter-Bold', fontSize: 14, color: '#991b1b'},
+  cafeClosedSub: {fontFamily: 'Inter-Regular', fontSize: 12, color: '#b91c1c', marginTop: 2},
 });
