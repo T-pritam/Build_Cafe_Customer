@@ -17,6 +17,11 @@ end
 target 'customer' do
   config = use_native_modules!
 
+  # FirebaseCoreInternal is a Swift pod that depends on GoogleUtilities,
+  # which doesn't define Clang modules by default. Needed for Swift
+  # AppDelegate + Firebase without use_frameworks! (static libs).
+  pod 'GoogleUtilities', :modular_headers => true
+
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.
