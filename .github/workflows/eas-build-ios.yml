@@ -1,0 +1,50 @@
+name: EAS iOS Simulator Build
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - ci/eas-ios-build
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write .env
+        env:
+          ENV_FILE: ${{ secrets.CUSTOMER_ENV_FILE }}
+        run: printf '%s' "$ENV_FILE" > .env
+
+      - name: Build iOS Simulator app
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --platform ios --profile ios-simulator --local --non-interactive --output build.tar.gz
+
+      - name: Upload build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-build
+          path: build.tar.gz
+
+      - name: Upload EAS build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eas-build-logs
+          path: |
+            /Users/runner/.eas-build-local
+            build-*.log
+          if-no-files-found: ignore
