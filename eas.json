@@ -4,6 +4,20 @@
     "ios-simulator": {
       "distribution": "internal",
       "ios": { "simulator": true }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6793487267",
+        "appleTeamId": "8H2C7MACXD",
+        "ascApiKeyPath": "./asc-api-key.p8",
+        "ascApiKeyId": "JS87K35P5A",
+        "ascApiKeyIssuerId": "e1f5bd6c-b89e-4086-852a-700c4a752c6c"
+      }
     }
   }
 }
