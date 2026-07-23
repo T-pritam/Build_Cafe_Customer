@@ -87,3 +87,6 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# App Store Connect API key / APNs keys — never commit
+*.p8
