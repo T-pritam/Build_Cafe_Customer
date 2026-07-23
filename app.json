@@ -1,9 +1,10 @@
 {
   "name": "customer",
   "displayName": "Build cafe",
+  "owner": "pritamrao37",
   "extra": {
     "eas": {
-      "projectId": "b2c93193-684b-4eca-a069-496c9f6ea267"
+      "projectId": "2a030e73-decc-4c08-8cb1-970fc0374dfe"
     }
   }
 }
